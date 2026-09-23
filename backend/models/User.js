@@ -51,21 +51,33 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Password hash
-userSchema.pre("save", async function (next) {
+// ===============================
+// PASSWORD HASHING
+// ===============================
+userSchema.pre("save", async function () {
+  // Password already hashed hai to dobara hash nahi karna
   if (!this.isModified("password")) {
-    return next();
+    return;
   }
 
   const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
 
-  next();
+  this.password = await bcrypt.hash(
+    this.password,
+    salt
+  );
 });
 
-// Password compare
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  return bcrypt.compare(enteredPassword, this.password);
+// ===============================
+// PASSWORD COMPARISON
+// ===============================
+userSchema.methods.comparePassword = async function (
+  enteredPassword
+) {
+  return bcrypt.compare(
+    enteredPassword,
+    this.password
+  );
 };
 
 module.exports = mongoose.model("User", userSchema);
