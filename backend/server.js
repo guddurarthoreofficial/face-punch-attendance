@@ -5,6 +5,9 @@ const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
+const schoolRoutes = require("./routes/schoolRoutes");
+const locationRoutes = require("./routes/locationRoutes");
+const attendanceRoutes = require("./routes/attendanceRoutes");
 
 
 
@@ -22,6 +25,9 @@ app.use(express.json());
 
 
 app.use("/api/auth", authRoutes);
+app.use("/api/school", schoolRoutes);
+app.use("/api/location", locationRoutes);
+app.use("/api/attendance",attendanceRoutes);
 
 app.get("/", (req, res) => {
   res.json({
