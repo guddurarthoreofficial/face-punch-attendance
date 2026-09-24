@@ -8,6 +8,7 @@ const authRoutes = require("./routes/authRoutes");
 const schoolRoutes = require("./routes/schoolRoutes");
 const locationRoutes = require("./routes/locationRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
+const employeeRoutes = require("./routes/employeeRoutes");
 
 
 
@@ -28,6 +29,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/school", schoolRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/attendance",attendanceRoutes);
+app.use("/api/employees", employeeRoutes);
 
 app.get("/", (req, res) => {
   res.json({

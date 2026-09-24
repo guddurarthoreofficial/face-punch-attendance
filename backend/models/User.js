@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema(
     },
 
     faceData: {
-      type: String,
+      type: [Number],
       default: null,
     },
 
@@ -48,7 +48,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // ===============================
@@ -62,22 +62,14 @@ userSchema.pre("save", async function () {
 
   const salt = await bcrypt.genSalt(10);
 
-  this.password = await bcrypt.hash(
-    this.password,
-    salt
-  );
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // ===============================
 // PASSWORD COMPARISON
 // ===============================
-userSchema.methods.comparePassword = async function (
-  enteredPassword
-) {
-  return bcrypt.compare(
-    enteredPassword,
-    this.password
-  );
+userSchema.methods.comparePassword = async function (enteredPassword) {
+  return bcrypt.compare(enteredPassword, this.password);
 };
 
 module.exports = mongoose.model("User", userSchema);
