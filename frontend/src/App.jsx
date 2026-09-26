@@ -1,45 +1,119 @@
-import { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
 import Login from "./pages/Login";
-import FaceCamera from "./components/FaceCamera";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
+
+import ProtectedRoute from "./components/ProtectedRoute";
+import Employees from "./pages/admin/Employees";
+import EmployeeFaceRegistration from "./pages/admin/EmployeeFaceRegistration";
+
+
+import Attendance from "./pages/employee/Attendance";
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    !!localStorage.getItem("token")
+  return (
+    <BrowserRouter>
+      <Routes>
+
+        {/* =========================
+            LOGIN
+        ========================= */}
+        <Route
+          path="/login"
+          element={<LoginRedirect />}
+        />
+
+        {/* =========================
+            ADMIN DASHBOARD
+        ========================= */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+
+        <Route
+          path="/admin/employees"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Employees />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/employees/:employeeId/face"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <EmployeeFaceRegistration />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =========================
+            EMPLOYEE DASHBOARD
+        ========================= */}
+        <Route
+          path="/employee"
+          element={
+            <ProtectedRoute allowedRoles={["employee"]}>
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/attendance"
+          element={
+            <ProtectedRoute allowedRoles={["employee"]}>
+              <Attendance />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =========================
+            DEFAULT
+        ========================= */}
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
+
+      </Routes>
+    </BrowserRouter>
   );
+}
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-  };
+// Redirect logged-in users away from login page
+function LoginRedirect() {
+  const token = localStorage.getItem("token");
+  const userData = localStorage.getItem("user");
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  if (token && userData) {
+    try {
+      const user = JSON.parse(userData);
 
-    setIsLoggedIn(false);
-  };
+      if (user.role === "admin") {
+        return <Navigate to="/admin" replace />;
+      }
 
-  if (!isLoggedIn) {
-    return <Login onLogin={handleLogin} />;
+      if (user.role === "employee") {
+        return <Navigate to="/employee" replace />;
+      }
+    } catch (error) {
+      console.error("User data error:", error);
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
   }
 
-  return (
-    <div>
-      <div className="bg-slate-900 px-6 py-4 flex justify-between items-center">
-        <h2 className="text-white font-bold">
-          School Attendance
-        </h2>
-
-        <button
-          onClick={handleLogout}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
-        >
-          Logout
-        </button>
-      </div>
-
-      <FaceCamera />
-    </div>
-  );
+  return <Login onLogin={() => { }} />;
 }
 
 export default App;

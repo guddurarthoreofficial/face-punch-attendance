@@ -1,13 +1,15 @@
 const Attendance = require("../models/Attendance");
 const School = require("../models/School");
 const calculateDistance = require("../utils/distance");
+const User = require("../models/User");
+const { isFaceMatch } = require("../utils/faceMatch");
 
 // ==========================================
 // CHECK IN
 // ==========================================
 const checkIn = async (req, res) => {
   try {
-    const { latitude, longitude, faceVerified } = req.body;
+    const { latitude, longitude, faceDescriptor } = req.body;
 
     // Only employee can check in
     if (req.user.role !== "employee") {
@@ -18,21 +20,10 @@ const checkIn = async (req, res) => {
     }
 
     // Validate GPS
-    if (
-      latitude === undefined ||
-      longitude === undefined
-    ) {
+    if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
         message: "Location is required",
-      });
-    }
-
-    // Face verification required
-    if (faceVerified !== true) {
-      return res.status(403).json({
-        success: false,
-        message: "Face verification is required",
       });
     }
 
@@ -46,6 +37,17 @@ const checkIn = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invalid GPS coordinates",
+      });
+    }
+
+    // Validate face descriptor
+    if (
+      !Array.isArray(faceDescriptor) ||
+      faceDescriptor.length !== 128
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid face descriptor is required",
       });
     }
 
@@ -69,6 +71,42 @@ const checkIn = async (req, res) => {
       school.longitude
     );
 
+    // Get employee with registered face
+    const employee = await User.findById(req.user._id);
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    if (
+      !Array.isArray(employee.faceData) ||
+      employee.faceData.length !== 128
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee face is not registered",
+      });
+    }
+
+    // Face verification
+    const faceResult = isFaceMatch(
+      employee.faceData,
+      faceDescriptor
+    );
+
+    console.log("Face Verification:", faceResult);
+
+    if (!faceResult.matched) {
+      return res.status(403).json({
+        success: false,
+        message: "Face verification failed",
+        distance: faceResult.distance,
+      });
+    }
+
     // Geofence check
     if (distance > school.radius) {
       return res.status(403).json({
@@ -80,14 +118,15 @@ const checkIn = async (req, res) => {
     }
 
     // Current date
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
 
     // Check existing attendance
-    const existingAttendance =
-      await Attendance.findOne({
-        employee: req.user._id,
-        date: today,
-      });
+    const existingAttendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: today,
+    });
 
     if (existingAttendance) {
       return res.status(409).json({
@@ -126,8 +165,6 @@ const checkIn = async (req, res) => {
   }
 };
 
-
-
 // ==========================================
 // CHECK OUT
 // ==========================================
@@ -144,10 +181,7 @@ const checkOut = async (req, res) => {
     }
 
     // Validate GPS
-    if (
-      latitude === undefined ||
-      longitude === undefined
-    ) {
+    if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
         message: "Location is required",
@@ -184,7 +218,7 @@ const checkOut = async (req, res) => {
       employeeLatitude,
       employeeLongitude,
       school.latitude,
-      school.longitude
+      school.longitude,
     );
 
     // Geofence check
@@ -198,9 +232,7 @@ const checkOut = async (req, res) => {
     }
 
     // Today's date
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
     // Find today's attendance
     const attendance = await Attendance.findOne({
@@ -248,7 +280,6 @@ const checkOut = async (req, res) => {
   }
 };
 
-
 // ==========================================
 // GET MY ATTENDANCE
 // ==========================================
@@ -258,10 +289,7 @@ const getMyAttendance = async (req, res) => {
       employee: req.user._id,
     })
       .sort({ date: -1 })
-      .populate(
-        "employee",
-        "name email phone"
-      );
+      .populate("employee", "name email phone");
 
     res.status(200).json({
       success: true,
@@ -277,7 +305,6 @@ const getMyAttendance = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   checkIn,

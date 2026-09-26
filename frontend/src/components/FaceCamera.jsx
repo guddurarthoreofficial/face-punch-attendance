@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
+import { apiRequest } from "../services/api";
 import {
   loadFaceModels,
   getFaceDescriptor,
 } from "../services/faceService";
 
-const API_URL = "http://localhost:5000/api";
+// const API_URL = "http://localhost:5000/api";
 
-function FaceCamera() {
+function FaceCamera({ employeeId: employeeIdProp }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -15,7 +16,9 @@ function FaceCamera() {
   const [cameraStarted, setCameraStarted] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [faceDescriptor, setFaceDescriptor] = useState(null);
-  const [employeeId, setEmployeeId] = useState("");
+  const [employeeId, setEmployeeId] = useState(
+    employeeIdProp || ""
+  );
   const [registering, setRegistering] = useState(false);
 
   // ==========================================
@@ -170,74 +173,61 @@ function FaceCamera() {
   // REGISTER FACE IN BACKEND
   // ==========================================
   const registerFace = async () => {
-    if (!employeeId.trim()) {
-      setStatus("Please enter Employee ID ❌");
-      return;
-    }
+  if (!employeeId.trim()) {
+    setStatus("Employee ID not found ❌");
+    return;
+  }
 
-    if (!faceDescriptor) {
-      setStatus("Please capture face first ❌");
-      return;
-    }
+  if (!faceDescriptor) {
+    setStatus("Please capture face first ❌");
+    return;
+  }
 
-    if (faceDescriptor.length !== 128) {
-      setStatus("Invalid face descriptor ❌");
-      return;
-    }
+  if (faceDescriptor.length !== 128) {
+    setStatus("Invalid face descriptor ❌");
+    return;
+  }
 
-    try {
-      setRegistering(true);
-      setStatus("Registering face...");
+  try {
+    setRegistering(true);
+    setStatus("Registering face...");
 
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        setStatus("Admin login token not found ❌");
-        return;
+    const data = await apiRequest(
+      `/employees/${employeeId.trim()}/face`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          faceData: faceDescriptor,
+        }),
       }
+    );
 
-      const response = await fetch(
-        `${API_URL}/employees/${employeeId.trim()}/face`,
-        {
-          method: "POST",
+    console.log("Register Face Response:", data);
 
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+    setStatus(
+      "Employee face registered successfully ✅"
+    );
 
-          body: JSON.stringify({
-            faceData: faceDescriptor,
-          }),
-        }
-      );
+    setFaceDescriptor(null);
 
-      const data = await response.json();
+  } catch (error) {
+    console.error("Register Face Error:", error);
 
-      console.log("Register Face Response:", data);
+    setStatus(
+      error.message || "Face registration failed ❌"
+    );
 
-      if (!response.ok) {
-        setStatus(
-          data.message || "Face registration failed ❌"
-        );
-        return;
-      }
+  } finally {
+    setRegistering(false);
+  }
+};
 
-      setStatus(
-        "Employee face registered successfully ✅"
-      );
 
-      setFaceDescriptor(null);
-    } catch (error) {
-      console.error("Register Face Error:", error);
-
-      setStatus(
-        "Unable to connect to backend ❌"
-      );
-    } finally {
-      setRegistering(false);
+  useEffect(() => {
+    if (employeeIdProp) {
+      setEmployeeId(employeeIdProp);
     }
-  };
+  }, [employeeIdProp]);
 
   // ==========================================
   // UI
@@ -253,25 +243,6 @@ function FaceCamera() {
         <div className="bg-slate-900 rounded-2xl p-5">
 
           {/* EMPLOYEE ID */}
-          <div className="mb-5">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Employee ID
-            </label>
-
-            <input
-              type="text"
-              value={employeeId}
-              onChange={(e) =>
-                setEmployeeId(e.target.value)
-              }
-              placeholder="Enter Employee ID"
-              className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500"
-            />
-
-            <p className="text-xs text-slate-400 mt-2">
-              Example: 6ab3fae6570ccfc5c22bb099
-            </p>
-          </div>
 
           {/* CAMERA */}
           <div className="relative bg-black rounded-xl overflow-hidden">
@@ -332,11 +303,10 @@ function FaceCamera() {
                   disabled={
                     !faceDescriptor || registering
                   }
-                  className={`px-6 py-3 rounded-lg font-semibold ${
-                    !faceDescriptor || registering
-                      ? "bg-slate-600 cursor-not-allowed"
-                      : "bg-orange-600 hover:bg-orange-700"
-                  }`}
+                  className={`px-6 py-3 rounded-lg font-semibold ${!faceDescriptor || registering
+                    ? "bg-slate-600 cursor-not-allowed"
+                    : "bg-orange-600 hover:bg-orange-700"
+                    }`}
                 >
                   {registering
                     ? "Registering..."

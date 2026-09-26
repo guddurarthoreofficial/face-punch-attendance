@@ -1,13 +1,19 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../services/api";
 
-const API_URL = "http://localhost:5000/api";
-
-function Login({ onLogin }) {
+function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const navigate = useNavigate();
+
+  // ==========================================
+  // LOGIN
+  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -15,30 +21,25 @@ function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const data = await apiRequest("/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+
         body: JSON.stringify({
           email,
           password,
         }),
       });
 
-      const data = await response.json();
-
       console.log("Login Response:", data);
 
-      if (!response.ok) {
-        setError(data.message || "Login failed");
-        return;
-      }
-
-      // Save JWT token
+      // ==========================================
+      // SAVE JWT TOKEN
+      // ==========================================
       localStorage.setItem("token", data.token);
 
-      // Save user information
+      // ==========================================
+      // SAVE USER
+      // ==========================================
       if (data.user) {
         localStorage.setItem(
           "user",
@@ -46,14 +47,23 @@ function Login({ onLogin }) {
         );
       }
 
-      setError("");
+      // ==========================================
+      // ROLE BASED REDIRECT
+      // ==========================================
+      if (data.user?.role === "admin") {
+        navigate("/admin");
+      } else if (data.user?.role === "employee") {
+        navigate("/employee");
+      } else {
+        setError("Invalid user role");
+      }
 
-      onLogin(data.user);
     } catch (error) {
       console.error("Login Error:", error);
 
       setError(
-        "Unable to connect to server. Please check backend."
+        error.message ||
+        "Unable to connect to server"
       );
     } finally {
       setLoading(false);
@@ -62,11 +72,14 @@ function Login({ onLogin }) {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+
       <div className="w-full max-w-md">
 
         <div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
 
+          {/* HEADER */}
           <div className="text-center mb-8">
+
             <h1 className="text-3xl font-bold text-white">
               School Attendance
             </h1>
@@ -74,12 +87,15 @@ function Login({ onLogin }) {
             <p className="text-slate-400 mt-2">
               Login to continue
             </p>
+
           </div>
 
+          {/* FORM */}
           <form onSubmit={handleLogin}>
 
             {/* EMAIL */}
             <div className="mb-5">
+
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Email
               </label>
@@ -94,10 +110,12 @@ function Login({ onLogin }) {
                 required
                 className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500"
               />
+
             </div>
 
             {/* PASSWORD */}
             <div className="mb-5">
+
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Password
               </label>
@@ -112,6 +130,7 @@ function Login({ onLogin }) {
                 required
                 className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-white outline-none focus:border-blue-500"
               />
+
             </div>
 
             {/* ERROR */}
@@ -127,7 +146,9 @@ function Login({ onLogin }) {
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white py-3 rounded-lg font-semibold transition"
             >
-              {loading ? "Logging in..." : "Login"}
+              {loading
+                ? "Logging in..."
+                : "Login"}
             </button>
 
           </form>
@@ -135,6 +156,7 @@ function Login({ onLogin }) {
         </div>
 
       </div>
+
     </div>
   );
 }
