@@ -10,6 +10,7 @@ import EmployeeFaceRegistration from "./pages/admin/EmployeeFaceRegistration";
 
 
 import Attendance from "./pages/employee/Attendance";
+import SchoolLocation from "./pages/admin/SchoolLocation";
 
 function App() {
   return (
@@ -51,6 +52,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <EmployeeFaceRegistration />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/school"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <SchoolLocation />
             </ProtectedRoute>
           }
         />
