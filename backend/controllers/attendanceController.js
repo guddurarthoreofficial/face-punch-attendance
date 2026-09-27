@@ -179,7 +179,8 @@ const checkIn = async (req, res) => {
 // ==========================================
 const checkOut = async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
+    // const { latitude, longitude } = req.body;
+    const { latitude, longitude, accuracy } = req.body;
 
     // Only employee
     if (req.user.role !== "employee") {
@@ -210,6 +211,16 @@ const checkOut = async (req, res) => {
       });
     }
 
+    // Validate GPS accuracy
+    const gpsAccuracy = Number(accuracy);
+
+    if (!Number.isFinite(gpsAccuracy)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid GPS accuracy is required",
+      });
+    }
+
     // Get active school
     const school = await School.findOne({
       isActive: true,
@@ -219,6 +230,17 @@ const checkOut = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "School location not configured",
+      });
+    }
+
+    // GPS accuracy check
+    if (gpsAccuracy > school.gpsAccuracyLimit) {
+      return res.status(403).json({
+        success: false,
+        message: "GPS accuracy is too low",
+        accuracy: Math.round(gpsAccuracy),
+        requiredAccuracy: school.gpsAccuracyLimit,
+        suggestion: "Please enable Precise Location and try again.",
       });
     }
 
