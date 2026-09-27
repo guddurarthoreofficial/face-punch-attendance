@@ -120,6 +120,7 @@ function AttendanceCamera() {
     );
 
     setError("");
+    setSuccess("");
 
     if (!navigator.geolocation) {
       setLocationStatus(
@@ -132,6 +133,7 @@ function AttendanceCamera() {
 
       return;
     }
+
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -369,12 +371,9 @@ function AttendanceCamera() {
           method: "POST",
 
           body: JSON.stringify({
-            latitude:
-              location.latitude,
-
-            longitude:
-              location.longitude,
-
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
             faceDescriptor,
           }),
         }
@@ -401,7 +400,7 @@ function AttendanceCamera() {
 
       setError(
         error.message ||
-          "Attendance could not be marked."
+        "Attendance could not be marked."
       );
 
       setStatus(
@@ -579,20 +578,19 @@ function AttendanceCamera() {
               checkingIn ||
               !!success
             }
-            className={`w-full py-4 rounded-xl font-bold text-lg transition ${
-              !faceDescriptor ||
+            className={`w-full py-4 rounded-xl font-bold text-lg transition ${!faceDescriptor ||
               !location ||
               checkingIn ||
               !!success
-                ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-                : "bg-orange-600 hover:bg-orange-700 text-white"
-            }`}
+              ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+              : "bg-orange-600 hover:bg-orange-700 text-white"
+              }`}
           >
             {checkingIn
               ? "Verifying..."
               : success
-              ? "Attendance Marked ✅"
-              : "Mark Attendance"}
+                ? "Attendance Marked ✅"
+                : "Mark Attendance"}
           </button>
 
         </div>

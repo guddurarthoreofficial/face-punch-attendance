@@ -9,8 +9,7 @@ const { isFaceMatch } = require("../utils/faceMatch");
 // ==========================================
 const checkIn = async (req, res) => {
   try {
-    const { latitude, longitude, faceDescriptor } = req.body;
-
+    const { latitude, longitude, accuracy, faceDescriptor } = req.body;
     // Only employee can check in
     if (req.user.role !== "employee") {
       return res.status(403).json({
@@ -41,10 +40,7 @@ const checkIn = async (req, res) => {
     }
 
     // Validate face descriptor
-    if (
-      !Array.isArray(faceDescriptor) ||
-      faceDescriptor.length !== 128
-    ) {
+    if (!Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
       return res.status(400).json({
         success: false,
         message: "Valid face descriptor is required",
@@ -63,12 +59,33 @@ const checkIn = async (req, res) => {
       });
     }
 
+    const gpsAccuracy = Number(accuracy);
+    console.log("GPS Accuracy:", gpsAccuracy);
+    console.log("School GPS Accuracy Limit:", school.gpsAccuracyLimit);
+
+    if (!Number.isFinite(gpsAccuracy)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid GPS accuracy is required",
+      });
+    }
+
+    if (gpsAccuracy > school.gpsAccuracyLimit) {
+      return res.status(403).json({
+        success: false,
+        message: "GPS accuracy is too low",
+        accuracy: Math.round(gpsAccuracy),
+        requiredAccuracy: school.gpsAccuracyLimit,
+        suggestion: "Please enable Precise Location and try again.",
+      });
+    }
+
     // Calculate distance
     const distance = calculateDistance(
       employeeLatitude,
       employeeLongitude,
       school.latitude,
-      school.longitude
+      school.longitude,
     );
 
     // Get employee with registered face
@@ -81,10 +98,7 @@ const checkIn = async (req, res) => {
       });
     }
 
-    if (
-      !Array.isArray(employee.faceData) ||
-      employee.faceData.length !== 128
-    ) {
+    if (!Array.isArray(employee.faceData) || employee.faceData.length !== 128) {
       return res.status(400).json({
         success: false,
         message: "Employee face is not registered",
@@ -92,10 +106,7 @@ const checkIn = async (req, res) => {
     }
 
     // Face verification
-    const faceResult = isFaceMatch(
-      employee.faceData,
-      faceDescriptor
-    );
+    const faceResult = isFaceMatch(employee.faceData, faceDescriptor);
 
     console.log("Face Verification:", faceResult);
 
@@ -118,9 +129,7 @@ const checkIn = async (req, res) => {
     }
 
     // Current date
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
     // Check existing attendance
     const existingAttendance = await Attendance.findOne({
