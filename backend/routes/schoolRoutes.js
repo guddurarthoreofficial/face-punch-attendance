@@ -3,6 +3,7 @@ const express = require("express");
 const {
   createSchool,
   getSchool,
+  updateSchool,
 } = require("../controllers/schoolController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -10,7 +11,10 @@ const authorize = require("../middleware/authorizeMiddleware");
 
 const router = express.Router();
 
-// Admin creates school location
+// ==========================================
+// CREATE SCHOOL
+// ==========================================
+
 router.post(
   "/",
   protect,
@@ -18,11 +22,25 @@ router.post(
   createSchool
 );
 
-// Logged-in users can see active school
+// ==========================================
+// GET ACTIVE SCHOOL
+// ==========================================
+
 router.get(
   "/",
   protect,
   getSchool
 );
 
-module.exports = router;
+// ==========================================
+// UPDATE SCHOOL
+// ==========================================
+
+router.put(
+  "/",
+  protect,
+  authorize("admin"),
+  updateSchool
+);
+
+module.exports = router;  
