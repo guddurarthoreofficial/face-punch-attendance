@@ -487,6 +487,98 @@ const getAdminTodayAttendance = async (req, res) => {
   }
 };
 
+const getAdminAttendance = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access attendance",
+      });
+    }
+
+    const { date, search = "", status = "all" } = req.query;
+
+    const selectedDate = date || new Date().toISOString().split("T")[0];
+
+    const employees = await User.find({
+      role: "employee",
+      isActive: true,
+      ...(search
+        ? {
+            $or: [
+              {
+                name: {
+                  $regex: search,
+                  $options: "i",
+                },
+              },
+              {
+                email: {
+                  $regex: search,
+                  $options: "i",
+                },
+              },
+            ],
+          }
+        : {}),
+    }).select("_id name email phone");
+
+    const attendanceRecords = await Attendance.find({
+      date: selectedDate,
+    });
+
+    const attendanceMap = new Map();
+
+    attendanceRecords.forEach((record) => {
+      attendanceMap.set(record.employee.toString(), record);
+    });
+
+    let attendance = employees.map((employee) => {
+      const record = attendanceMap.get(employee._id.toString());
+
+      return {
+        employee: {
+          id: employee._id,
+          name: employee.name,
+          email: employee.email,
+          phone: employee.phone,
+        },
+
+        attendance: record
+          ? {
+              id: record._id,
+              date: record.date,
+              checkIn: record.checkIn,
+              checkOut: record.checkOut,
+              status: record.status,
+              faceVerified: record.faceVerified,
+            }
+          : null,
+
+        status: record ? record.status : "absent",
+      };
+    });
+
+    if (status !== "all") {
+      attendance = attendance.filter((item) => item.status === status);
+    }
+
+    res.status(200).json({
+      success: true,
+      date: selectedDate,
+      count: attendance.length,
+      attendance,
+    });
+  } catch (error) {
+    console.error("Get Admin Attendance Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   checkIn,
   checkOut,
@@ -494,4 +586,5 @@ module.exports = {
   getMyTodayAttendance,
   getAdminDashboardStats,
   getAdminTodayAttendance,
+  getAdminAttendance,
 };

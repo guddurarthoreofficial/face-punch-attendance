@@ -20,6 +20,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import AdminLayout from "./layouts/AdminLayout";
 import EmployeeLayout from "./layouts/EmployeeLayout";
+import AdminAttendance from "./pages/admin/AdminAttendance";
 
 import {
   AuthProvider,
@@ -126,6 +127,11 @@ function AppRoutes() {
         <Route
           path="school"
           element={<SchoolLocation />}
+        />
+
+        <Route
+          path="attendance"
+          element={<AdminAttendance />}
         />
 
       </Route>

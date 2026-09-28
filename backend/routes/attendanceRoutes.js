@@ -7,6 +7,7 @@ const {
   getMyTodayAttendance,
   getAdminDashboardStats,
   getAdminTodayAttendance,
+  getAdminAttendance,
 } = require("../controllers/attendanceController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -45,5 +46,7 @@ router.get(
   authorize("admin"),
   getAdminTodayAttendance,
 );
+
+router.get("/admin", protect, authorize("admin"), getAdminAttendance);
 
 module.exports = router;
