@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -10,6 +11,7 @@ function Login() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   // ==========================================
   // LOGIN
@@ -35,21 +37,16 @@ function Login() {
       // ==========================================
       // SAVE JWT TOKEN
       // ==========================================
-      localStorage.setItem("token", data.token);
 
-      // ==========================================
-      // SAVE USER
-      // ==========================================
-      if (data.user) {
-        localStorage.setItem(
-          "user",
-          JSON.stringify(data.user)
-        );
-      }
+      login(
+        data.token,
+        data.user
+      );
 
       // ==========================================
       // ROLE BASED REDIRECT
       // ==========================================
+
       if (data.user?.role === "admin") {
         navigate("/admin");
       } else if (data.user?.role === "employee") {
@@ -57,7 +54,6 @@ function Login() {
       } else {
         setError("Invalid user role");
       }
-
     } catch (error) {
       console.error("Login Error:", error);
 
@@ -161,4 +157,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default Login

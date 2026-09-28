@@ -1,24 +1,76 @@
 import { Navigate } from "react-router-dom";
 
-function ProtectedRoute({ children, allowedRoles }) {
-  const token = localStorage.getItem("token");
-  const userData = localStorage.getItem("user");
+import { useAuth } from "../context/AuthContext";
 
-  if (!token || !userData) {
-    return <Navigate to="/login" replace />;
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}) {
+  const {
+    user,
+    isAuthenticated,
+    loading,
+  } = useAuth();
+
+  // ==========================================
+  // AUTH RESTORING
+  // ==========================================
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <p className="text-slate-300">
+          Loading...
+        </p>
+      </div>
+    );
   }
 
-  const user = JSON.parse(userData);
+  // ==========================================
+  // NOT LOGGED IN
+  // ==========================================
+
+  if (!isAuthenticated || !user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
+  }
+
+  // ==========================================
+  // ROLE CHECK
+  // ==========================================
 
   if (
     allowedRoles &&
     !allowedRoles.includes(user.role)
   ) {
     if (user.role === "admin") {
-      return <Navigate to="/admin" replace />;
+      return (
+        <Navigate
+          to="/admin"
+          replace
+        />
+      );
     }
 
-    return <Navigate to="/employee" replace />;
+    if (user.role === "employee") {
+      return (
+        <Navigate
+          to="/employee"
+          replace
+        />
+      );
+    }
+
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
   }
 
   return children;

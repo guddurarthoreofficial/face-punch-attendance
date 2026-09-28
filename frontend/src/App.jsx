@@ -1,129 +1,194 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
 import Login from "./pages/Login";
+
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
 
-import ProtectedRoute from "./components/ProtectedRoute";
 import Employees from "./pages/admin/Employees";
 import EmployeeFaceRegistration from "./pages/admin/EmployeeFaceRegistration";
-
-
-import Attendance from "./pages/employee/Attendance";
 import SchoolLocation from "./pages/admin/SchoolLocation";
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
+import Attendance from "./pages/employee/Attendance";
 
-        {/* =========================
-            LOGIN
-        ========================= */}
-        <Route
-          path="/login"
-          element={<LoginRedirect />}
-        />
+import ProtectedRoute from "./components/ProtectedRoute";
 
-        {/* =========================
-            ADMIN DASHBOARD
-        ========================= */}
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
+import AdminLayout from "./layouts/AdminLayout";
+import EmployeeLayout from "./layouts/EmployeeLayout";
 
+import {
+  AuthProvider,
+  useAuth,
+} from "./context/AuthContext";
 
-        <Route
-          path="/admin/employees"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <Employees />
-            </ProtectedRoute>
-          }
-        />
+// ==========================================
+// LOGIN REDIRECT
+// ==========================================
 
-        <Route
-          path="/admin/employees/:employeeId/face"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <EmployeeFaceRegistration />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/admin/school"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <SchoolLocation />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* =========================
-            EMPLOYEE DASHBOARD
-        ========================= */}
-        <Route
-          path="/employee"
-          element={
-            <ProtectedRoute allowedRoles={["employee"]}>
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/employee/attendance"
-          element={
-            <ProtectedRoute allowedRoles={["employee"]}>
-              <Attendance />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* =========================
-            DEFAULT
-        ========================= */}
-        <Route
-          path="*"
-          element={<Navigate to="/login" replace />}
-        />
-
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-// Redirect logged-in users away from login page
 function LoginRedirect() {
-  const token = localStorage.getItem("token");
-  const userData = localStorage.getItem("user");
+  const {
+    user,
+    isAuthenticated,
+    loading,
+  } = useAuth();
 
-  if (token && userData) {
-    try {
-      const user = JSON.parse(userData);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <p className="text-slate-300">
+          Loading...
+        </p>
+      </div>
+    );
+  }
 
-      if (user.role === "admin") {
-        return <Navigate to="/admin" replace />;
-      }
+  if (isAuthenticated && user) {
+    if (user.role === "admin") {
+      return (
+        <Navigate
+          to="/admin"
+          replace
+        />
+      );
+    }
 
-      if (user.role === "employee") {
-        return <Navigate to="/employee" replace />;
-      }
-    } catch (error) {
-      console.error("User data error:", error);
-
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+    if (user.role === "employee") {
+      return (
+        <Navigate
+          to="/employee"
+          replace
+        />
+      );
     }
   }
 
-  return <Login onLogin={() => { }} />;
+  return <Login />;
+}
+
+// ==========================================
+// APP ROUTES
+// ==========================================
+
+function AppRoutes() {
+  return (
+    <Routes>
+
+      {/* ==================================
+          LOGIN
+      ================================== */}
+
+      <Route
+        path="/login"
+        element={<LoginRedirect />}
+      />
+
+      {/* ==================================
+          ADMIN ROUTES
+      ================================== */}
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute
+            allowedRoles={["admin"]}
+          >
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+
+        {/* /admin */}
+        <Route
+          index
+          element={<AdminDashboard />}
+        />
+
+        {/* /admin/employees */}
+        <Route
+          path="employees"
+          element={<Employees />}
+        />
+
+        {/* /admin/employees/:employeeId/face */}
+        <Route
+          path="employees/:employeeId/face"
+          element={
+            <EmployeeFaceRegistration />
+          }
+        />
+
+        {/* /admin/school */}
+        <Route
+          path="school"
+          element={<SchoolLocation />}
+        />
+
+      </Route>
+
+      {/* ==================================
+          EMPLOYEE ROUTES
+      ================================== */}
+
+      <Route
+        path="/employee"
+        element={
+          <ProtectedRoute
+            allowedRoles={["employee"]}
+          >
+            <EmployeeLayout />
+          </ProtectedRoute>
+        }
+      >
+
+        {/* /employee */}
+        <Route
+          index
+          element={<EmployeeDashboard />}
+        />
+
+        {/* /employee/attendance */}
+        <Route
+          path="attendance"
+          element={<Attendance />}
+        />
+
+      </Route>
+
+      {/* ==================================
+          DEFAULT
+      ================================== */}
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/login"
+            replace
+          />
+        }
+      />
+
+    </Routes>
+  );
+}
+
+// ==========================================
+// APP
+// ==========================================
+
+function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
+  );
 }
 
 export default App;
