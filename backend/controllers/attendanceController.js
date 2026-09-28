@@ -337,8 +337,83 @@ const getMyAttendance = async (req, res) => {
   }
 };
 
+// ==========================================
+// ADMIN DASHBOARD STATS
+// ==========================================
+const getAdminDashboardStats = async (req, res) => {
+  try {
+    // Only admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access dashboard statistics",
+      });
+    }
+
+    // Today's date
+    const today = new Date().toISOString().split("T")[0];
+
+    // Total active employees
+    const totalEmployees = await User.countDocuments({
+      role: "employee",
+      isActive: true,
+    });
+
+    // Today's attendance
+    const todayAttendance = await Attendance.find({
+      date: today,
+    }).select("employee checkIn checkOut status");
+
+    // Present
+    const presentToday = todayAttendance.filter(
+      (item) => item.status === "present" || item.status === "late",
+    ).length;
+
+    // Late
+    const lateToday = todayAttendance.filter(
+      (item) => item.status === "late",
+    ).length;
+
+    // Currently checked in
+    const currentlyCheckedIn = todayAttendance.filter(
+      (item) => item.checkIn && !item.checkOut,
+    ).length;
+
+    // Checked out
+    const checkedOutToday = todayAttendance.filter(
+      (item) => !!item.checkOut,
+    ).length;
+
+    // Employees without attendance
+    const absentToday = Math.max(totalEmployees - presentToday, 0);
+
+    res.status(200).json({
+      success: true,
+
+      date: today,
+
+      stats: {
+        totalEmployees,
+        presentToday,
+        absentToday,
+        lateToday,
+        currentlyCheckedIn,
+        checkedOutToday,
+      },
+    });
+  } catch (error) {
+    console.error("Get Admin Dashboard Stats Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   checkIn,
   checkOut,
   getMyAttendance,
+  getAdminDashboardStats,
 };

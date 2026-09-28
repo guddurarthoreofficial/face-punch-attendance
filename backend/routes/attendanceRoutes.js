@@ -4,7 +4,9 @@ const {
   checkIn,
   checkOut,
   getMyAttendance,
+  getAdminDashboardStats,
 } = require("../controllers/attendanceController");
+
 
 const { protect } = require("../middleware/authMiddleware");
 const authorize = require("../middleware/authorizeMiddleware");
@@ -33,6 +35,17 @@ router.get(
   protect,
   authorize("employee"),
   getMyAttendance
+);
+
+// ==========================================
+// ADMIN DASHBOARD STATS
+// ==========================================
+
+router.get(
+  "/admin/stats",
+  protect,
+  authorize("admin"),
+  getAdminDashboardStats
 );
 
 module.exports = router;
