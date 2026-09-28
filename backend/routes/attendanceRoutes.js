@@ -5,6 +5,7 @@ const {
   checkOut,
   getMyAttendance,
   getAdminDashboardStats,
+  getAdminTodayAttendance, 
 } = require("../controllers/attendanceController");
 
 
@@ -47,5 +48,17 @@ router.get(
   authorize("admin"),
   getAdminDashboardStats
 );
+
+// ==========================================
+// ADMIN TODAY'S ATTENDANCE
+// ==========================================
+
+router.get(
+  "/admin/today",
+  protect,
+  authorize("admin"),
+  getAdminTodayAttendance
+);
+
 
 module.exports = router;

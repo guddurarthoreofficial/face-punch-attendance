@@ -411,9 +411,58 @@ const getAdminDashboardStats = async (req, res) => {
   }
 };
 
+
+// ==========================================
+// ADMIN TODAY'S ATTENDANCE
+// ==========================================
+const getAdminTodayAttendance = async (req, res) => {
+  try {
+    // Only admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access today's attendance",
+      });
+    }
+
+    // Today's date
+    const today = new Date()
+      .toISOString()
+      .split("T")[0];
+
+    const attendance = await Attendance.find({
+      date: today,
+    })
+      .sort({ checkIn: 1 })
+      .populate(
+        "employee",
+        "name email phone"
+      );
+
+    res.status(200).json({
+      success: true,
+      date: today,
+      count: attendance.length,
+      attendance,
+    });
+  } catch (error) {
+    console.error(
+      "Get Admin Today Attendance Error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+
 module.exports = {
   checkIn,
   checkOut,
   getMyAttendance,
   getAdminDashboardStats,
+  getAdminTodayAttendance, 
 };
