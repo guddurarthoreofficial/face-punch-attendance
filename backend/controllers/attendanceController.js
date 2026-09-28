@@ -312,6 +312,44 @@ const checkOut = async (req, res) => {
 };
 
 // ==========================================
+// GET MY TODAY'S ATTENDANCE
+// ==========================================
+const getMyTodayAttendance = async (req, res) => {
+  try {
+    // Only employee
+    if (req.user.role !== "employee") {
+      return res.status(403).json({
+        success: false,
+        message: "Only employees can access today's attendance",
+      });
+    }
+
+    // Today's date
+    const today = new Date().toISOString().split("T")[0];
+
+    const attendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: today,
+    }).select(
+      "date checkIn checkOut checkInLocation checkOutLocation faceVerified status",
+    );
+
+    res.status(200).json({
+      success: true,
+      date: today,
+      attendance: attendance || null,
+    });
+  } catch (error) {
+    console.error("Get My Today Attendance Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ==========================================
 // GET MY ATTENDANCE
 // ==========================================
 const getMyAttendance = async (req, res) => {
@@ -411,7 +449,6 @@ const getAdminDashboardStats = async (req, res) => {
   }
 };
 
-
 // ==========================================
 // ADMIN TODAY'S ATTENDANCE
 // ==========================================
@@ -426,18 +463,13 @@ const getAdminTodayAttendance = async (req, res) => {
     }
 
     // Today's date
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
     const attendance = await Attendance.find({
       date: today,
     })
       .sort({ checkIn: 1 })
-      .populate(
-        "employee",
-        "name email phone"
-      );
+      .populate("employee", "name email phone");
 
     res.status(200).json({
       success: true,
@@ -446,10 +478,7 @@ const getAdminTodayAttendance = async (req, res) => {
       attendance,
     });
   } catch (error) {
-    console.error(
-      "Get Admin Today Attendance Error:",
-      error
-    );
+    console.error("Get Admin Today Attendance Error:", error);
 
     res.status(500).json({
       success: false,
@@ -458,11 +487,11 @@ const getAdminTodayAttendance = async (req, res) => {
   }
 };
 
-
 module.exports = {
   checkIn,
   checkOut,
   getMyAttendance,
+  getMyTodayAttendance,
   getAdminDashboardStats,
-  getAdminTodayAttendance, 
+  getAdminTodayAttendance,
 };
