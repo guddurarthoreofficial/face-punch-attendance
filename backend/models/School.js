@@ -31,6 +31,32 @@ const schoolSchema = new mongoose.Schema(
       max: 500,
     },
 
+    attendanceRules: {
+      checkInTime: {
+        type: String,
+        default: "09:00",
+      },
+
+      lateAfterMinutes: {
+        type: Number,
+        default: 15,
+        min: 0,
+        max: 180,
+      },
+
+      minimumWorkingHours: {
+        type: Number,
+        default: 8,
+        min: 1,
+        max: 24,
+      },
+
+      allowEarlyCheckout: {
+        type: Boolean,
+        default: false,
+      },
+    },
+
     isActive: {
       type: Boolean,
       default: true,
@@ -38,7 +64,8 @@ const schoolSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-module.exports = mongoose.model("School", schoolSchema);
+module.exports =
+  mongoose.model("School", schoolSchema);

@@ -9,7 +9,13 @@ const { isFaceMatch } = require("../utils/faceMatch");
 // ==========================================
 const checkIn = async (req, res) => {
   try {
-    const { latitude, longitude, accuracy, faceDescriptor } = req.body;
+    const {
+      latitude,
+      longitude,
+      accuracy,
+      faceDescriptor,
+    } = req.body;
+
     // Only employee can check in
     if (req.user.role !== "employee") {
       return res.status(403).json({
@@ -19,7 +25,10 @@ const checkIn = async (req, res) => {
     }
 
     // Validate GPS
-    if (latitude === undefined || longitude === undefined) {
+    if (
+      latitude === undefined ||
+      longitude === undefined
+    ) {
       return res.status(400).json({
         success: false,
         message: "Location is required",
@@ -40,10 +49,14 @@ const checkIn = async (req, res) => {
     }
 
     // Validate face descriptor
-    if (!Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
+    if (
+      !Array.isArray(faceDescriptor) ||
+      faceDescriptor.length !== 128
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Valid face descriptor is required",
+        message:
+          "Valid face descriptor is required",
       });
     }
 
@@ -55,28 +68,54 @@ const checkIn = async (req, res) => {
     if (!school) {
       return res.status(404).json({
         success: false,
-        message: "School location not configured",
+        message:
+          "School location not configured",
       });
     }
 
+    // Safe attendance rules
+    const attendanceRules =
+      school.attendanceRules || {
+        checkInTime: "09:00",
+        lateAfterMinutes: 15,
+        minimumWorkingHours: 8,
+        allowEarlyCheckout: false,
+      };
+
+    // Validate GPS accuracy
     const gpsAccuracy = Number(accuracy);
-    console.log("GPS Accuracy:", gpsAccuracy);
-    console.log("School GPS Accuracy Limit:", school.gpsAccuracyLimit);
+
+    console.log(
+      "GPS Accuracy:",
+      gpsAccuracy
+    );
+
+    console.log(
+      "School GPS Accuracy Limit:",
+      school.gpsAccuracyLimit
+    );
 
     if (!Number.isFinite(gpsAccuracy)) {
       return res.status(400).json({
         success: false,
-        message: "Valid GPS accuracy is required",
+        message:
+          "Valid GPS accuracy is required",
       });
     }
 
-    if (gpsAccuracy > school.gpsAccuracyLimit) {
+    if (
+      gpsAccuracy >
+      school.gpsAccuracyLimit
+    ) {
       return res.status(403).json({
         success: false,
-        message: "GPS accuracy is too low",
+        message:
+          "GPS accuracy is too low",
         accuracy: Math.round(gpsAccuracy),
-        requiredAccuracy: school.gpsAccuracyLimit,
-        suggestion: "Please enable Precise Location and try again.",
+        requiredAccuracy:
+          school.gpsAccuracyLimit,
+        suggestion:
+          "Please enable Precise Location and try again.",
       });
     }
 
@@ -85,11 +124,13 @@ const checkIn = async (req, res) => {
       employeeLatitude,
       employeeLongitude,
       school.latitude,
-      school.longitude,
+      school.longitude
     );
 
     // Get employee with registered face
-    const employee = await User.findById(req.user._id);
+    const employee = await User.findById(
+      req.user._id
+    );
 
     if (!employee) {
       return res.status(404).json({
@@ -98,23 +139,36 @@ const checkIn = async (req, res) => {
       });
     }
 
-    if (!Array.isArray(employee.faceData) || employee.faceData.length !== 128) {
+    // Check registered face
+    if (
+      !Array.isArray(employee.faceData) ||
+      employee.faceData.length !== 128
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Employee face is not registered",
+        message:
+          "Employee face is not registered",
       });
     }
 
     // Face verification
-    const faceResult = isFaceMatch(employee.faceData, faceDescriptor);
+    const faceResult = isFaceMatch(
+      employee.faceData,
+      faceDescriptor
+    );
 
-    console.log("Face Verification:", faceResult);
+    console.log(
+      "Face Verification:",
+      faceResult
+    );
 
     if (!faceResult.matched) {
       return res.status(403).json({
         success: false,
-        message: "Face verification failed",
-        distance: faceResult.distance,
+        message:
+          "Face verification failed",
+        distance:
+          faceResult.distance,
       });
     }
 
@@ -122,52 +176,111 @@ const checkIn = async (req, res) => {
     if (distance > school.radius) {
       return res.status(403).json({
         success: false,
-        message: "You are outside the school area",
+        message:
+          "You are outside the school area",
         distance: Math.round(distance),
         allowedRadius: school.radius,
       });
     }
 
     // Current date
-    const today = new Date().toISOString().split("T")[0];
+    const today =
+      new Date()
+        .toISOString()
+        .split("T")[0];
 
     // Check existing attendance
-    const existingAttendance = await Attendance.findOne({
-      employee: req.user._id,
-      date: today,
-    });
+    const existingAttendance =
+      await Attendance.findOne({
+        employee: req.user._id,
+        date: today,
+      });
 
     if (existingAttendance) {
       return res.status(409).json({
         success: false,
-        message: "Attendance already marked for today",
+        message:
+          "Attendance already marked for today",
       });
     }
 
+    // Current time
+    const now = new Date();
+
+    // Parse official check-in time
+    const [
+      checkInHours,
+      checkInMinutes,
+    ] = attendanceRules.checkInTime
+      .split(":")
+      .map(Number);
+
+    const lateLimit = new Date(now);
+
+    lateLimit.setHours(
+      checkInHours,
+      checkInMinutes +
+        attendanceRules.lateAfterMinutes,
+      0,
+      0
+    );
+
+    // Determine attendance status
+    const attendanceStatus =
+      now > lateLimit
+        ? "late"
+        : "present";
+
+    console.log(
+      "Attendance Status:",
+      attendanceStatus
+    );
+
     // Create attendance
-    const attendance = await Attendance.create({
-      employee: req.user._id,
-      date: today,
-      checkIn: new Date(),
+    const attendance =
+      await Attendance.create({
+        employee: req.user._id,
 
-      checkInLocation: {
-        latitude: employeeLatitude,
-        longitude: employeeLongitude,
-      },
+        date: today,
 
-      faceVerified: true,
-      status: "present",
-    });
+        checkIn: now,
 
-    res.status(201).json({
+        checkInLocation: {
+          latitude:
+            employeeLatitude,
+          longitude:
+            employeeLongitude,
+        },
+
+        faceVerified: true,
+
+        status: attendanceStatus,
+      });
+
+    return res.status(201).json({
       success: true,
-      message: "Attendance marked successfully",
+      message:
+        attendanceStatus === "late"
+          ? "Attendance marked successfully. You are late."
+          : "Attendance marked successfully",
       attendance,
     });
   } catch (error) {
-    console.error("Check In Error:", error);
+    console.error(
+      "Check In Error:",
+      error
+    );
 
-    res.status(500).json({
+    // Duplicate attendance protection
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Attendance already marked for today",
+      });
+    }
+
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
@@ -179,19 +292,26 @@ const checkIn = async (req, res) => {
 // ==========================================
 const checkOut = async (req, res) => {
   try {
-    // const { latitude, longitude } = req.body;
-    const { latitude, longitude, accuracy } = req.body;
+    const {
+      latitude,
+      longitude,
+      accuracy,
+    } = req.body;
 
-    // Only employee
+    // Only employee can check out
     if (req.user.role !== "employee") {
       return res.status(403).json({
         success: false,
-        message: "Only employees can check out",
+        message:
+          "Only employees can check out",
       });
     }
 
     // Validate GPS
-    if (latitude === undefined || longitude === undefined) {
+    if (
+      latitude === undefined ||
+      longitude === undefined
+    ) {
       return res.status(400).json({
         success: false,
         message: "Location is required",
@@ -207,7 +327,8 @@ const checkOut = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid GPS coordinates",
+        message:
+          "Invalid GPS coordinates",
       });
     }
 
@@ -217,7 +338,8 @@ const checkOut = async (req, res) => {
     if (!Number.isFinite(gpsAccuracy)) {
       return res.status(400).json({
         success: false,
-        message: "Valid GPS accuracy is required",
+        message:
+          "Valid GPS accuracy is required",
       });
     }
 
@@ -229,18 +351,36 @@ const checkOut = async (req, res) => {
     if (!school) {
       return res.status(404).json({
         success: false,
-        message: "School location not configured",
+        message:
+          "School location not configured",
       });
     }
 
+    // Safe attendance rules
+    const attendanceRules =
+      school.attendanceRules || {
+        checkInTime: "09:00",
+        lateAfterMinutes: 15,
+        minimumWorkingHours: 8,
+        allowEarlyCheckout: false,
+      };
+
     // GPS accuracy check
-    if (gpsAccuracy > school.gpsAccuracyLimit) {
+    if (
+      gpsAccuracy >
+      school.gpsAccuracyLimit
+    ) {
       return res.status(403).json({
         success: false,
-        message: "GPS accuracy is too low",
-        accuracy: Math.round(gpsAccuracy),
-        requiredAccuracy: school.gpsAccuracyLimit,
-        suggestion: "Please enable Precise Location and try again.",
+        message:
+          "GPS accuracy is too low",
+        accuracy: Math.round(
+          gpsAccuracy
+        ),
+        requiredAccuracy:
+          school.gpsAccuracyLimit,
+        suggestion:
+          "Please enable Precise Location and try again.",
       });
     }
 
@@ -249,32 +389,39 @@ const checkOut = async (req, res) => {
       employeeLatitude,
       employeeLongitude,
       school.latitude,
-      school.longitude,
+      school.longitude
     );
 
     // Geofence check
     if (distance > school.radius) {
       return res.status(403).json({
         success: false,
-        message: "You are outside the school area",
+        message:
+          "You are outside the school area",
         distance: Math.round(distance),
-        allowedRadius: school.radius,
+        allowedRadius:
+          school.radius,
       });
     }
 
     // Today's date
-    const today = new Date().toISOString().split("T")[0];
+    const today =
+      new Date()
+        .toISOString()
+        .split("T")[0];
 
     // Find today's attendance
-    const attendance = await Attendance.findOne({
-      employee: req.user._id,
-      date: today,
-    });
+    const attendance =
+      await Attendance.findOne({
+        employee: req.user._id,
+        date: today,
+      });
 
     if (!attendance) {
       return res.status(404).json({
         success: false,
-        message: "Check-in not found for today",
+        message:
+          "Check-in not found for today",
       });
     }
 
@@ -282,29 +429,76 @@ const checkOut = async (req, res) => {
     if (attendance.checkOut) {
       return res.status(409).json({
         success: false,
-        message: "You have already checked out",
+        message:
+          "You have already checked out",
+      });
+    }
+
+    // Calculate working hours
+    const checkOutTime = new Date();
+
+    const workingMilliseconds =
+      checkOutTime.getTime() -
+      new Date(
+        attendance.checkIn
+      ).getTime();
+
+    const workingHours =
+      workingMilliseconds /
+      (1000 * 60 * 60);
+
+    const minimumWorkingHours =
+      attendanceRules.minimumWorkingHours;
+
+    // Early checkout protection
+    if (
+      workingHours <
+        minimumWorkingHours &&
+      !attendanceRules.allowEarlyCheckout
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Minimum working hours not completed",
+        workedHours: Number(
+          workingHours.toFixed(2)
+        ),
+        requiredHours:
+          minimumWorkingHours,
+        suggestion:
+          "Please complete the required working hours before checking out.",
       });
     }
 
     // Save checkout
-    attendance.checkOut = new Date();
+    attendance.checkOut =
+      checkOutTime;
 
     attendance.checkOutLocation = {
-      latitude: employeeLatitude,
-      longitude: employeeLongitude,
+      latitude:
+        employeeLatitude,
+      longitude:
+        employeeLongitude,
     };
 
     await attendance.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Check-out successful",
+      message:
+        "Check-out successful",
       attendance,
+      workingHours: Number(
+        workingHours.toFixed(2)
+      ),
     });
   } catch (error) {
-    console.error("Check Out Error:", error);
+    console.error(
+      "Check Out Error:",
+      error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
