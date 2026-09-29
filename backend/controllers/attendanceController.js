@@ -174,6 +174,18 @@ const checkIn = async (req, res) => {
 
     const officialCheckInMinutes = checkInHours * 60 + checkInMinutes;
 
+    if (currentIndiaMinutes < officialCheckInMinutes) {
+      return res.status(403).json({
+        success: false,
+        message: "Attendance cannot be marked before check-in time",
+        currentTime: `${String(Math.floor(currentIndiaMinutes / 60)).padStart(
+          2,
+          "0",
+        )}:${String(currentIndiaMinutes % 60).padStart(2, "0")}`,
+        checkInTime: attendanceRules.checkInTime,
+      });
+    }
+
     const lateLimitMinutes =
       officialCheckInMinutes + Number(attendanceRules.lateAfterMinutes);
 
