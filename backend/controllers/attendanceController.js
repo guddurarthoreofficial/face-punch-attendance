@@ -4,17 +4,17 @@ const calculateDistance = require("../utils/distance");
 const User = require("../models/User");
 const { isFaceMatch } = require("../utils/faceMatch");
 
+const {
+  getIndiaDateString,
+  getIndiaTimeMinutes,
+} = require("../utils/indiaTime");
+
 // ==========================================
 // CHECK IN
 // ==========================================
 const checkIn = async (req, res) => {
   try {
-    const {
-      latitude,
-      longitude,
-      accuracy,
-      faceDescriptor,
-    } = req.body;
+    const { latitude, longitude, accuracy, faceDescriptor } = req.body;
 
     // Only employee can check in
     if (req.user.role !== "employee") {
@@ -25,10 +25,7 @@ const checkIn = async (req, res) => {
     }
 
     // Validate GPS
-    if (
-      latitude === undefined ||
-      longitude === undefined
-    ) {
+    if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
         message: "Location is required",
@@ -49,14 +46,10 @@ const checkIn = async (req, res) => {
     }
 
     // Validate face descriptor
-    if (
-      !Array.isArray(faceDescriptor) ||
-      faceDescriptor.length !== 128
-    ) {
+    if (!Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
       return res.status(400).json({
         success: false,
-        message:
-          "Valid face descriptor is required",
+        message: "Valid face descriptor is required",
       });
     }
 
@@ -68,54 +61,39 @@ const checkIn = async (req, res) => {
     if (!school) {
       return res.status(404).json({
         success: false,
-        message:
-          "School location not configured",
+        message: "School location not configured",
       });
     }
 
     // Safe attendance rules
-    const attendanceRules =
-      school.attendanceRules || {
-        checkInTime: "09:00",
-        lateAfterMinutes: 15,
-        minimumWorkingHours: 8,
-        allowEarlyCheckout: false,
-      };
+    const attendanceRules = school.attendanceRules || {
+      checkInTime: "09:00",
+      lateAfterMinutes: 15,
+      minimumWorkingHours: 8,
+      allowEarlyCheckout: false,
+    };
 
     // Validate GPS accuracy
     const gpsAccuracy = Number(accuracy);
 
-    console.log(
-      "GPS Accuracy:",
-      gpsAccuracy
-    );
+    console.log("GPS Accuracy:", gpsAccuracy);
 
-    console.log(
-      "School GPS Accuracy Limit:",
-      school.gpsAccuracyLimit
-    );
+    console.log("School GPS Accuracy Limit:", school.gpsAccuracyLimit);
 
     if (!Number.isFinite(gpsAccuracy)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Valid GPS accuracy is required",
+        message: "Valid GPS accuracy is required",
       });
     }
 
-    if (
-      gpsAccuracy >
-      school.gpsAccuracyLimit
-    ) {
+    if (gpsAccuracy > school.gpsAccuracyLimit) {
       return res.status(403).json({
         success: false,
-        message:
-          "GPS accuracy is too low",
+        message: "GPS accuracy is too low",
         accuracy: Math.round(gpsAccuracy),
-        requiredAccuracy:
-          school.gpsAccuracyLimit,
-        suggestion:
-          "Please enable Precise Location and try again.",
+        requiredAccuracy: school.gpsAccuracyLimit,
+        suggestion: "Please enable Precise Location and try again.",
       });
     }
 
@@ -124,13 +102,11 @@ const checkIn = async (req, res) => {
       employeeLatitude,
       employeeLongitude,
       school.latitude,
-      school.longitude
+      school.longitude,
     );
 
     // Get employee with registered face
-    const employee = await User.findById(
-      req.user._id
-    );
+    const employee = await User.findById(req.user._id);
 
     if (!employee) {
       return res.status(404).json({
@@ -140,35 +116,23 @@ const checkIn = async (req, res) => {
     }
 
     // Check registered face
-    if (
-      !Array.isArray(employee.faceData) ||
-      employee.faceData.length !== 128
-    ) {
+    if (!Array.isArray(employee.faceData) || employee.faceData.length !== 128) {
       return res.status(400).json({
         success: false,
-        message:
-          "Employee face is not registered",
+        message: "Employee face is not registered",
       });
     }
 
     // Face verification
-    const faceResult = isFaceMatch(
-      employee.faceData,
-      faceDescriptor
-    );
+    const faceResult = isFaceMatch(employee.faceData, faceDescriptor);
 
-    console.log(
-      "Face Verification:",
-      faceResult
-    );
+    console.log("Face Verification:", faceResult);
 
     if (!faceResult.matched) {
       return res.status(403).json({
         success: false,
-        message:
-          "Face verification failed",
-        distance:
-          faceResult.distance,
+        message: "Face verification failed",
+        distance: faceResult.distance,
       });
     }
 
@@ -176,86 +140,69 @@ const checkIn = async (req, res) => {
     if (distance > school.radius) {
       return res.status(403).json({
         success: false,
-        message:
-          "You are outside the school area",
+        message: "You are outside the school area",
         distance: Math.round(distance),
         allowedRadius: school.radius,
       });
     }
 
     // Current date
-    const today =
-      new Date()
-        .toISOString()
-        .split("T")[0];
+    // const today = new Date().toISOString().split("T")[0];
+    const today = getIndiaDateString();
 
     // Check existing attendance
-    const existingAttendance =
-      await Attendance.findOne({
-        employee: req.user._id,
-        date: today,
-      });
+    const existingAttendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: today,
+    });
 
     if (existingAttendance) {
       return res.status(409).json({
         success: false,
-        message:
-          "Attendance already marked for today",
+        message: "Attendance already marked for today",
       });
     }
 
     // Current time
     const now = new Date();
 
-    // Parse official check-in time
-    const [
-      checkInHours,
-      checkInMinutes,
-    ] = attendanceRules.checkInTime
+    const currentIndiaMinutes = getIndiaTimeMinutes(now);
+
+    const [checkInHours, checkInMinutes] = attendanceRules.checkInTime
       .split(":")
       .map(Number);
 
-    const lateLimit = new Date(now);
+    const officialCheckInMinutes = checkInHours * 60 + checkInMinutes;
 
-    lateLimit.setHours(
-      checkInHours,
-      checkInMinutes +
-        attendanceRules.lateAfterMinutes,
-      0,
-      0
-    );
+    const lateLimitMinutes =
+      officialCheckInMinutes + Number(attendanceRules.lateAfterMinutes);
 
-    // Determine attendance status
     const attendanceStatus =
-      now > lateLimit
-        ? "late"
-        : "present";
+      currentIndiaMinutes > lateLimitMinutes ? "late" : "present";
 
-    console.log(
-      "Attendance Status:",
-      attendanceStatus
-    );
+    console.log("India Current Minutes:", currentIndiaMinutes);
+    console.log("Official Check-In Minutes:", officialCheckInMinutes);
+    console.log("Late Limit Minutes:", lateLimitMinutes);
+
+    console.log("Attendance Status:", attendanceStatus);
 
     // Create attendance
-    const attendance =
-      await Attendance.create({
-        employee: req.user._id,
+    const attendance = await Attendance.create({
+      employee: req.user._id,
 
-        date: today,
+      date: today,
 
-        checkIn: now,
+      checkIn: now,
 
-        checkInLocation: {
-          latitude:
-            employeeLatitude,
-          longitude:
-            employeeLongitude,
-        },
+      checkInLocation: {
+        latitude: employeeLatitude,
+        longitude: employeeLongitude,
+      },
 
-        faceVerified: true,
+      faceVerified: true,
 
-        status: attendanceStatus,
-      });
+      status: attendanceStatus,
+    });
 
     return res.status(201).json({
       success: true,
@@ -266,17 +213,13 @@ const checkIn = async (req, res) => {
       attendance,
     });
   } catch (error) {
-    console.error(
-      "Check In Error:",
-      error
-    );
+    console.error("Check In Error:", error);
 
     // Duplicate attendance protection
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
-        message:
-          "Attendance already marked for today",
+        message: "Attendance already marked for today",
       });
     }
 
@@ -292,26 +235,18 @@ const checkIn = async (req, res) => {
 // ==========================================
 const checkOut = async (req, res) => {
   try {
-    const {
-      latitude,
-      longitude,
-      accuracy,
-    } = req.body;
+    const { latitude, longitude, accuracy } = req.body;
 
     // Only employee can check out
     if (req.user.role !== "employee") {
       return res.status(403).json({
         success: false,
-        message:
-          "Only employees can check out",
+        message: "Only employees can check out",
       });
     }
 
     // Validate GPS
-    if (
-      latitude === undefined ||
-      longitude === undefined
-    ) {
+    if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
         message: "Location is required",
@@ -327,8 +262,7 @@ const checkOut = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid GPS coordinates",
+        message: "Invalid GPS coordinates",
       });
     }
 
@@ -338,8 +272,7 @@ const checkOut = async (req, res) => {
     if (!Number.isFinite(gpsAccuracy)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Valid GPS accuracy is required",
+        message: "Valid GPS accuracy is required",
       });
     }
 
@@ -351,36 +284,26 @@ const checkOut = async (req, res) => {
     if (!school) {
       return res.status(404).json({
         success: false,
-        message:
-          "School location not configured",
+        message: "School location not configured",
       });
     }
 
     // Safe attendance rules
-    const attendanceRules =
-      school.attendanceRules || {
-        checkInTime: "09:00",
-        lateAfterMinutes: 15,
-        minimumWorkingHours: 8,
-        allowEarlyCheckout: false,
-      };
+    const attendanceRules = school.attendanceRules || {
+      checkInTime: "09:00",
+      lateAfterMinutes: 15,
+      minimumWorkingHours: 8,
+      allowEarlyCheckout: false,
+    };
 
     // GPS accuracy check
-    if (
-      gpsAccuracy >
-      school.gpsAccuracyLimit
-    ) {
+    if (gpsAccuracy > school.gpsAccuracyLimit) {
       return res.status(403).json({
         success: false,
-        message:
-          "GPS accuracy is too low",
-        accuracy: Math.round(
-          gpsAccuracy
-        ),
-        requiredAccuracy:
-          school.gpsAccuracyLimit,
-        suggestion:
-          "Please enable Precise Location and try again.",
+        message: "GPS accuracy is too low",
+        accuracy: Math.round(gpsAccuracy),
+        requiredAccuracy: school.gpsAccuracyLimit,
+        suggestion: "Please enable Precise Location and try again.",
       });
     }
 
@@ -389,39 +312,33 @@ const checkOut = async (req, res) => {
       employeeLatitude,
       employeeLongitude,
       school.latitude,
-      school.longitude
+      school.longitude,
     );
 
     // Geofence check
     if (distance > school.radius) {
       return res.status(403).json({
         success: false,
-        message:
-          "You are outside the school area",
+        message: "You are outside the school area",
         distance: Math.round(distance),
-        allowedRadius:
-          school.radius,
+        allowedRadius: school.radius,
       });
     }
 
     // Today's date
-    const today =
-      new Date()
-        .toISOString()
-        .split("T")[0];
+    // const today = new Date().toISOString().split("T")[0];
+    const today = getIndiaDateString();
 
     // Find today's attendance
-    const attendance =
-      await Attendance.findOne({
-        employee: req.user._id,
-        date: today,
-      });
+    const attendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: today,
+    });
 
     if (!attendance) {
       return res.status(404).json({
         success: false,
-        message:
-          "Check-in not found for today",
+        message: "Check-in not found for today",
       });
     }
 
@@ -429,8 +346,7 @@ const checkOut = async (req, res) => {
     if (attendance.checkOut) {
       return res.status(409).json({
         success: false,
-        message:
-          "You have already checked out",
+        message: "You have already checked out",
       });
     }
 
@@ -438,65 +354,45 @@ const checkOut = async (req, res) => {
     const checkOutTime = new Date();
 
     const workingMilliseconds =
-      checkOutTime.getTime() -
-      new Date(
-        attendance.checkIn
-      ).getTime();
+      checkOutTime.getTime() - new Date(attendance.checkIn).getTime();
 
-    const workingHours =
-      workingMilliseconds /
-      (1000 * 60 * 60);
+    const workingHours = workingMilliseconds / (1000 * 60 * 60);
 
-    const minimumWorkingHours =
-      attendanceRules.minimumWorkingHours;
+    const minimumWorkingHours = attendanceRules.minimumWorkingHours;
 
     // Early checkout protection
     if (
-      workingHours <
-        minimumWorkingHours &&
+      workingHours < minimumWorkingHours &&
       !attendanceRules.allowEarlyCheckout
     ) {
       return res.status(403).json({
         success: false,
-        message:
-          "Minimum working hours not completed",
-        workedHours: Number(
-          workingHours.toFixed(2)
-        ),
-        requiredHours:
-          minimumWorkingHours,
+        message: "Minimum working hours not completed",
+        workedHours: Number(workingHours.toFixed(2)),
+        requiredHours: minimumWorkingHours,
         suggestion:
           "Please complete the required working hours before checking out.",
       });
     }
 
     // Save checkout
-    attendance.checkOut =
-      checkOutTime;
+    attendance.checkOut = checkOutTime;
 
     attendance.checkOutLocation = {
-      latitude:
-        employeeLatitude,
-      longitude:
-        employeeLongitude,
+      latitude: employeeLatitude,
+      longitude: employeeLongitude,
     };
 
     await attendance.save();
 
     return res.status(200).json({
       success: true,
-      message:
-        "Check-out successful",
+      message: "Check-out successful",
       attendance,
-      workingHours: Number(
-        workingHours.toFixed(2)
-      ),
+      workingHours: Number(workingHours.toFixed(2)),
     });
   } catch (error) {
-    console.error(
-      "Check Out Error:",
-      error
-    );
+    console.error("Check Out Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -519,7 +415,8 @@ const getMyTodayAttendance = async (req, res) => {
     }
 
     // Today's date
-    const today = new Date().toISOString().split("T")[0];
+    // const today = new Date().toISOString().split("T")[0];
+    const today = getIndiaDateString();
 
     const attendance = await Attendance.findOne({
       employee: req.user._id,
@@ -583,7 +480,8 @@ const getAdminDashboardStats = async (req, res) => {
     }
 
     // Today's date
-    const today = new Date().toISOString().split("T")[0];
+    // const today = new Date().toISOString().split("T")[0];
+    const today = getIndiaDateString();
 
     // Total active employees
     const totalEmployees = await User.countDocuments({
@@ -657,7 +555,8 @@ const getAdminTodayAttendance = async (req, res) => {
     }
 
     // Today's date
-    const today = new Date().toISOString().split("T")[0];
+    // const today = new Date().toISOString().split("T")[0];
+    const today = getIndiaDateString();
 
     const attendance = await Attendance.find({
       date: today,
@@ -692,7 +591,8 @@ const getAdminAttendance = async (req, res) => {
 
     const { date, search = "", status = "all" } = req.query;
 
-    const selectedDate = date || new Date().toISOString().split("T")[0];
+    // const selectedDate = date || new Date().toISOString().split("T")[0];
+    const selectedDate = date || getIndiaDateString();
 
     const employees = await User.find({
       role: "employee",
