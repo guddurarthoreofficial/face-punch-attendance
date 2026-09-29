@@ -21,6 +21,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./layouts/AdminLayout";
 import EmployeeLayout from "./layouts/EmployeeLayout";
 import AdminAttendance from "./pages/admin/AdminAttendance";
+import AttendanceRules from "./pages/admin/AttendanceRules";
 
 import {
   AuthProvider,
@@ -132,6 +133,11 @@ function AppRoutes() {
         <Route
           path="attendance"
           element={<AdminAttendance />}
+        />
+
+        <Route
+          path="attendance-rules"
+          element={<AttendanceRules />}
         />
 
       </Route>

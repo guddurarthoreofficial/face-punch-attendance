@@ -5,19 +5,9 @@ const School = require("../models/School");
 // ==========================================
 const createSchool = async (req, res) => {
   try {
-    const {
-      name,
-      latitude,
-      longitude,
-      radius,
-      gpsAccuracyLimit,
-    } = req.body;
+    const { name, latitude, longitude, radius, gpsAccuracyLimit } = req.body;
 
-    if (
-      !name ||
-      latitude === undefined ||
-      longitude === undefined
-    ) {
+    if (!name || latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
         message: "Name, latitude and longitude are required",
@@ -39,14 +29,9 @@ const createSchool = async (req, res) => {
       name,
       latitude: Number(latitude),
       longitude: Number(longitude),
-      radius:
-        radius !== undefined
-          ? Number(radius)
-          : 150,
+      radius: radius !== undefined ? Number(radius) : 150,
       gpsAccuracyLimit:
-        gpsAccuracyLimit !== undefined
-          ? Number(gpsAccuracyLimit)
-          : 50,
+        gpsAccuracyLimit !== undefined ? Number(gpsAccuracyLimit) : 50,
     });
 
     res.status(201).json({
@@ -105,6 +90,7 @@ const updateSchool = async (req, res) => {
       longitude,
       radius,
       gpsAccuracyLimit,
+      attendanceRules,
     } = req.body;
 
     const school = await School.findOne({
@@ -118,7 +104,28 @@ const updateSchool = async (req, res) => {
       });
     }
 
-    // Validate coordinates if provided
+    // ==========================================
+    // SCHOOL NAME
+    // ==========================================
+
+    if (name !== undefined) {
+      if (
+        typeof name !== "string" ||
+        !name.trim()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "School name cannot be empty",
+        });
+      }
+
+      school.name = name.trim();
+    }
+
+    // ==========================================
+    // LATITUDE
+    // ==========================================
+
     if (latitude !== undefined) {
       const parsedLatitude = Number(latitude);
 
@@ -135,6 +142,10 @@ const updateSchool = async (req, res) => {
 
       school.latitude = parsedLatitude;
     }
+
+    // ==========================================
+    // LONGITUDE
+    // ==========================================
 
     if (longitude !== undefined) {
       const parsedLongitude = Number(longitude);
@@ -153,19 +164,10 @@ const updateSchool = async (req, res) => {
       school.longitude = parsedLongitude;
     }
 
-    // Update name
-    if (name !== undefined) {
-      if (!name.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "School name cannot be empty",
-        });
-      }
+    // ==========================================
+    // RADIUS
+    // ==========================================
 
-      school.name = name.trim();
-    }
-
-    // Update radius
     if (radius !== undefined) {
       const parsedRadius = Number(radius);
 
@@ -175,14 +177,18 @@ const updateSchool = async (req, res) => {
       ) {
         return res.status(400).json({
           success: false,
-          message: "Radius must be at least 20 meters",
+          message:
+            "Radius must be at least 20 meters",
         });
       }
 
       school.radius = parsedRadius;
     }
 
-    // Update GPS accuracy limit
+    // ==========================================
+    // GPS ACCURACY LIMIT
+    // ==========================================
+
     if (gpsAccuracyLimit !== undefined) {
       const parsedAccuracyLimit =
         Number(gpsAccuracyLimit);
@@ -203,17 +209,161 @@ const updateSchool = async (req, res) => {
         parsedAccuracyLimit;
     }
 
+    // ==========================================
+    // ATTENDANCE RULES
+    // ==========================================
+
+    if (attendanceRules !== undefined) {
+      if (
+        typeof attendanceRules !== "object" ||
+        attendanceRules === null ||
+        Array.isArray(attendanceRules)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid attendance rules",
+        });
+      }
+
+      // Make sure attendanceRules exists
+      if (!school.attendanceRules) {
+        school.attendanceRules = {
+          checkInTime: "09:00",
+          lateAfterMinutes: 15,
+          minimumWorkingHours: 8,
+          allowEarlyCheckout: false,
+        };
+      }
+
+      // Check-in time
+      if (
+        attendanceRules.checkInTime !== undefined
+      ) {
+        const checkInTime =
+          attendanceRules.checkInTime;
+
+        if (
+          typeof checkInTime !== "string" ||
+          !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(
+            checkInTime
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Invalid check-in time. Use HH:mm format.",
+          });
+        }
+
+        school.attendanceRules.checkInTime =
+          checkInTime;
+      }
+
+      // Late threshold
+      if (
+        attendanceRules.lateAfterMinutes !==
+        undefined
+      ) {
+        const lateAfterMinutes = Number(
+          attendanceRules.lateAfterMinutes
+        );
+
+        if (
+          !Number.isFinite(
+            lateAfterMinutes
+          ) ||
+          lateAfterMinutes < 0 ||
+          lateAfterMinutes > 180
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Late threshold must be between 0 and 180 minutes",
+          });
+        }
+
+        school.attendanceRules.lateAfterMinutes =
+          lateAfterMinutes;
+      }
+
+      // Minimum working hours
+      if (
+        attendanceRules.minimumWorkingHours !==
+        undefined
+      ) {
+        const minimumWorkingHours = Number(
+          attendanceRules.minimumWorkingHours
+        );
+
+        if (
+          !Number.isFinite(
+            minimumWorkingHours
+          ) ||
+          minimumWorkingHours < 1 ||
+          minimumWorkingHours > 24
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Minimum working hours must be between 1 and 24",
+          });
+        }
+
+        school.attendanceRules.minimumWorkingHours =
+          minimumWorkingHours;
+      }
+
+      // Allow early checkout
+      if (
+        attendanceRules.allowEarlyCheckout !==
+        undefined
+      ) {
+        if (
+          typeof attendanceRules.allowEarlyCheckout !==
+          "boolean"
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "allowEarlyCheckout must be true or false",
+          });
+        }
+
+        school.attendanceRules.allowEarlyCheckout =
+          attendanceRules.allowEarlyCheckout;
+      }
+
+      // IMPORTANT:
+      // Tell Mongoose that nested rules changed
+      school.markModified("attendanceRules");
+    }
+
+    // ==========================================
+    // SAVE
+    // ==========================================
+
     await school.save();
 
-    res.status(200).json({
+    // ==========================================
+    // RE-FETCH FROM DATABASE
+    // ==========================================
+
+    const updatedSchool =
+      await School.findById(school._id);
+
+    return res.status(200).json({
       success: true,
-      message: "School location updated successfully",
-      school,
+      message:
+        "School settings updated successfully",
+      school: updatedSchool,
     });
   } catch (error) {
-    console.error("Update School Error:", error);
+    console.error(
+      "Update School Error:",
+      error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
