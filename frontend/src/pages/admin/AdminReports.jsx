@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-
-// const API_URL ="http://localhost:5000/api";
-// const API_URL ="http://localhost:5000/api";
-const API_URL = "https://attendance-1ifv.onrender.com/api";
+import { apiRequest } from "../../services/api";
 
 
 /* =========================
@@ -301,11 +298,7 @@ export default function AdminReports() {
       setLoading(true);
       setError("");
 
-      const token = localStorage.getItem("token");
 
-      if (!token) {
-        throw new Error("Authentication token not found");
-      }
 
       const { startDate, endDate } = getSelectedDateRange();
 
@@ -319,9 +312,9 @@ export default function AdminReports() {
         );
       }
 
-      let url = "";
+      let endpoint = "";
 
-      /* Daily API */
+      // Daily API
       if (mode === "daily") {
         const params = new URLSearchParams();
 
@@ -335,10 +328,10 @@ export default function AdminReports() {
           params.append("status", status);
         }
 
-        url = `${API_URL}/attendance/admin?${params.toString()}`;
+        endpoint = `/attendance/admin?${params.toString()}`;
       }
 
-      /* Range API */
+      // Range API
       else {
         const params = new URLSearchParams();
 
@@ -349,24 +342,10 @@ export default function AdminReports() {
           params.append("search", search.trim());
         }
 
-        url = `${API_URL}/attendance/admin/report?${params.toString()}`;
+        endpoint = `/attendance/admin/report?${params.toString()}`;
       }
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || "Failed to fetch attendance report"
-        );
-      }
+      const data = await apiRequest(endpoint);
 
       const records = data.attendance || [];
 
