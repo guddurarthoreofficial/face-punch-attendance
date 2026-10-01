@@ -18,7 +18,7 @@ function Employees() {
   const [search, setSearch] = useState("");
 
   // ==========================================
-  // LOADING / ERROR
+  // LOADING / ERROR / SUCCESS
   // ==========================================
 
   const [loading, setLoading] = useState(true);
@@ -29,9 +29,7 @@ function Employees() {
   // ADD EMPLOYEE MODAL
   // ==========================================
 
-  const [showAddModal, setShowAddModal] =
-    useState(false);
-
+  const [showAddModal, setShowAddModal] = useState(false);
   const [adding, setAdding] = useState(false);
 
   const [form, setForm] = useState({
@@ -42,6 +40,31 @@ function Employees() {
   });
 
   // ==========================================
+  // EDIT EMPLOYEE MODAL
+  // ==========================================
+
+  const [showEditModal, setShowEditModal] =
+    useState(false);
+
+  const [editingEmployee, setEditingEmployee] =
+    useState(null);
+
+  const [updating, setUpdating] = useState(false);
+
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+  });
+
+  // ==========================================
+  // STATUS UPDATE
+  // ==========================================
+
+  const [statusUpdatingId, setStatusUpdatingId] =
+    useState(null);
+
+  // ==========================================
   // FETCH EMPLOYEES
   // ==========================================
 
@@ -50,9 +73,7 @@ function Employees() {
       setLoading(true);
       setError("");
 
-      const data = await apiRequest(
-        "/employees"
-      );
+      const data = await apiRequest("/employees");
 
       setEmployees(data.employees || []);
     } catch (error) {
@@ -63,7 +84,7 @@ function Employees() {
 
       setError(
         error.message ||
-          "Failed to load employees"
+        "Failed to load employees"
       );
     } finally {
       setLoading(false);
@@ -75,7 +96,7 @@ function Employees() {
   }, []);
 
   // ==========================================
-  // FORM CHANGE
+  // ADD FORM CHANGE
   // ==========================================
 
   const handleFormChange = (e) => {
@@ -104,6 +125,7 @@ function Employees() {
 
     setError("");
     setSuccess("");
+
     setShowAddModal(true);
   };
 
@@ -122,6 +144,8 @@ function Employees() {
       phone: "",
       password: "",
     });
+
+    setError("");
   };
 
   // ==========================================
@@ -153,8 +177,14 @@ function Employees() {
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address.");
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
+    ) {
+      setError(
+        "Please enter a valid email address."
+      );
       return;
     }
 
@@ -222,10 +252,216 @@ function Employees() {
 
       setError(
         error.message ||
-          "Failed to create employee."
+        "Failed to create employee."
       );
     } finally {
       setAdding(false);
+    }
+  };
+
+  // ==========================================
+  // OPEN EDIT MODAL
+  // ==========================================
+
+  const openEditModal = (employee) => {
+    setEditingEmployee(employee);
+
+    setEditForm({
+      name: employee.name || "",
+      email: employee.email || "",
+      phone: employee.phone || "",
+    });
+
+    setError("");
+    setSuccess("");
+
+    setShowEditModal(true);
+  };
+
+  // ==========================================
+  // CLOSE EDIT MODAL
+  // ==========================================
+
+  const closeEditModal = () => {
+    if (updating) return;
+
+    setShowEditModal(false);
+    setEditingEmployee(null);
+
+    setEditForm({
+      name: "",
+      email: "",
+      phone: "",
+    });
+
+    setError("");
+  };
+
+  // ==========================================
+  // EDIT FORM CHANGE
+  // ==========================================
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+
+    setEditForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    setError("");
+    setSuccess("");
+  };
+
+  // ==========================================
+  // UPDATE EMPLOYEE
+  // ==========================================
+
+  const handleUpdateEmployee = async (e) => {
+    e.preventDefault();
+
+    if (!editingEmployee) return;
+
+    setError("");
+    setSuccess("");
+
+    const name = editForm.name.trim();
+    const email = editForm.email
+      .trim()
+      .toLowerCase();
+    const phone = editForm.phone.trim();
+
+    // ------------------------------------------
+    // VALIDATION
+    // ------------------------------------------
+
+    if (!name) {
+      setError("Employee name is required.");
+      return;
+    }
+
+    if (!email) {
+      setError("Email is required.");
+      return;
+    }
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
+    ) {
+      setError(
+        "Please enter a valid email address."
+      );
+      return;
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      setError(
+        "Phone number must contain exactly 10 digits."
+      );
+      return;
+    }
+
+    // ------------------------------------------
+    // API
+    // ------------------------------------------
+
+    try {
+      setUpdating(true);
+
+      await apiRequest(
+        `/employees/${editingEmployee._id}`,
+        {
+          method: "PUT",
+
+          body: JSON.stringify({
+            name,
+            email,
+            phone,
+          }),
+        }
+      );
+
+      setSuccess(
+        "Employee updated successfully ✅"
+      );
+
+      setShowEditModal(false);
+      setEditingEmployee(null);
+
+      setEditForm({
+        name: "",
+        email: "",
+        phone: "",
+      });
+
+      await fetchEmployees();
+    } catch (error) {
+      console.error(
+        "Update Employee Error:",
+        error
+      );
+
+      setError(
+        error.message ||
+        "Failed to update employee."
+      );
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // ==========================================
+  // TOGGLE ACTIVE / INACTIVE
+  // ==========================================
+
+  const handleToggleStatus = async (
+    employee
+  ) => {
+    const action = employee.isActive
+      ? "deactivate"
+      : "activate";
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ${action} ${employee.name}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setStatusUpdatingId(employee._id);
+      setError("");
+      setSuccess("");
+
+      await apiRequest(
+        `/employees/${employee._id}/status`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      setSuccess(
+        employee.isActive
+          ? "Employee deactivated successfully."
+          : "Employee activated successfully."
+      );
+
+      await fetchEmployees();
+    } catch (error) {
+      console.error(
+        "Toggle Employee Status Error:",
+        error
+      );
+
+      setError(
+        error.message ||
+        "Failed to update employee status."
+      );
+    } finally {
+      setStatusUpdatingId(null);
     }
   };
 
@@ -326,17 +562,15 @@ function Employees() {
 
             {/* SEARCH */}
 
-            <div className="relative">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="Search employee..."
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500 sm:w-64"
-              />
-            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
+              placeholder="Search employee..."
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500 sm:w-64"
+            />
 
             {/* REFRESH */}
 
@@ -374,13 +608,15 @@ function Employees() {
 
         {/* ERROR */}
 
-        {error && !showAddModal && (
-          <div className="mb-5 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
-            <p className="text-sm text-red-300">
-              {error}
-            </p>
-          </div>
-        )}
+        {error &&
+          !showAddModal &&
+          !showEditModal && (
+            <div className="mb-5 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+              <p className="text-sm text-red-300">
+                {error}
+              </p>
+            </div>
+          )}
 
         {/* LOADING */}
 
@@ -437,7 +673,7 @@ function Employees() {
 
               <div className="overflow-x-auto">
 
-                <table className="w-full min-w-[900px]">
+                <table className="w-full min-w-[1100px]">
 
                   <thead className="bg-slate-800">
 
@@ -464,7 +700,7 @@ function Employees() {
                       </th>
 
                       <th className="px-6 py-4 text-left text-sm font-semibold">
-                        Action
+                        Actions
                       </th>
 
                     </tr>
@@ -486,7 +722,7 @@ function Employees() {
 
                             <div className="flex items-center gap-3">
 
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 font-semibold text-blue-400">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 font-semibold text-blue-400">
                                 {employee.name
                                   ?.charAt(0)
                                   ?.toUpperCase() ||
@@ -551,23 +787,69 @@ function Employees() {
 
                           </td>
 
-                          {/* ACTION */}
+                          {/* ACTIONS */}
 
                           <td className="px-6 py-4">
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(
-                                  `/admin/employees/${employee._id}/face`
-                                )
-                              }
-                              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium transition hover:bg-purple-500"
-                            >
-                              {employee.faceRegistered
-                                ? "Update Face"
-                                : "Register Face"}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+
+                              {/* EDIT */}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openEditModal(
+                                    employee
+                                  )
+                                }
+                                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium transition hover:bg-blue-500"
+                              >
+                                Edit
+                              </button>
+
+                              {/* FACE */}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    `/admin/employees/${employee._id}/face`
+                                  )
+                                }
+                                className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium transition hover:bg-purple-500"
+                              >
+                                {employee.faceRegistered
+                                  ? "Update Face"
+                                  : "Register Face"}
+                              </button>
+
+                              {/* STATUS */}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleStatus(
+                                    employee
+                                  )
+                                }
+                                disabled={
+                                  statusUpdatingId ===
+                                  employee._id
+                                }
+                                className={`rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${employee.isActive
+                                    ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                                    : "bg-green-500/10 text-green-300 hover:bg-green-500/20"
+                                  }`}
+                              >
+                                {statusUpdatingId ===
+                                  employee._id
+                                  ? "Updating..."
+                                  : employee.isActive
+                                    ? "Deactivate"
+                                    : "Activate"}
+                              </button>
+
+                            </div>
 
                           </td>
 
@@ -595,7 +877,7 @@ function Employees() {
 
           <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
 
-            {/* MODAL HEADER */}
+            {/* HEADER */}
 
             <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
 
@@ -620,14 +902,12 @@ function Employees() {
 
             </div>
 
-            {/* MODAL FORM */}
+            {/* FORM */}
 
             <form
               onSubmit={handleAddEmployee}
               className="space-y-5 p-6"
             >
-
-              {/* MODAL ERROR */}
 
               {error && (
                 <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
@@ -765,6 +1045,161 @@ function Employees() {
 
         </div>
       )}
+
+      {/* ======================================
+          EDIT EMPLOYEE MODAL
+      ======================================= */}
+
+      {showEditModal &&
+        editingEmployee && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+
+            <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+              {/* HEADER */}
+
+              <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+
+                <div>
+                  <h2 className="text-xl font-bold text-white">
+                    Edit Employee
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Update employee account information.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={updating}
+                  className="text-2xl text-slate-500 transition hover:text-white disabled:opacity-50"
+                >
+                  ×
+                </button>
+
+              </div>
+
+              {/* FORM */}
+
+              <form
+                onSubmit={handleUpdateEmployee}
+                className="space-y-5 p-6"
+              >
+
+                {/* ERROR */}
+
+                {error && (
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+                    <p className="text-sm text-red-300">
+                      {error}
+                    </p>
+                  </div>
+                )}
+
+                {/* NAME */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">
+                    Full Name
+                  </label>
+
+                  <input
+                    type="text"
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditChange}
+                    placeholder="Enter employee name"
+                    maxLength={100}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* EMAIL */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">
+                    Email
+                  </label>
+
+                  <input
+                    type="email"
+                    name="email"
+                    value={editForm.email}
+                    onChange={handleEditChange}
+                    placeholder="employee@school.com"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* PHONE */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">
+                    Phone Number
+                  </label>
+
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={editForm.phone}
+                    onChange={(e) => {
+                      const value =
+                        e.target.value.replace(
+                          /\D/g,
+                          ""
+                        );
+
+                      if (value.length <= 10) {
+                        setEditForm(
+                          (previous) => ({
+                            ...previous,
+                            phone: value,
+                          })
+                        );
+                      }
+
+                      setError("");
+                    }}
+                    placeholder="10 digit mobile number"
+                    inputMode="numeric"
+                    maxLength={10}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* ACTIONS */}
+
+                <div className="flex flex-col-reverse gap-3 border-t border-slate-800 pt-5 sm:flex-row sm:justify-end">
+
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    disabled={updating}
+                    className="rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={updating}
+                    className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {updating
+                      ? "Updating..."
+                      : "Save Changes"}
+                  </button>
+
+                </div>
+
+              </form>
+
+            </div>
+
+          </div>
+        )}
 
     </div>
   );
