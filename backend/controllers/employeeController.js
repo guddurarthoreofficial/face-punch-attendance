@@ -60,12 +60,30 @@ const getEmployees = async (req, res) => {
   try {
     const employees = await User.find({
       role: "employee",
-    }).select("-password");
+    })
+      .select("name email phone role isActive createdAt updatedAt faceData")
+      .lean();
+
+    const safeEmployees = employees.map((employee) => ({
+      _id: employee._id,
+      name: employee.name,
+      email: employee.email,
+      phone: employee.phone,
+      role: employee.role,
+      isActive: employee.isActive,
+      createdAt: employee.createdAt,
+      updatedAt: employee.updatedAt,
+
+      // Only send registration status.
+      // Never send the actual face descriptor.
+      faceRegistered:
+        Array.isArray(employee.faceData) && employee.faceData.length === 128,
+    }));
 
     res.status(200).json({
       success: true,
-      count: employees.length,
-      employees,
+      count: safeEmployees.length,
+      employees: safeEmployees,
     });
   } catch (error) {
     console.error("Get Employees Error:", error);
@@ -76,7 +94,6 @@ const getEmployees = async (req, res) => {
     });
   }
 };
-
 // ==========================================
 // REGISTER EMPLOYEE FACE
 // ==========================================
@@ -131,8 +148,6 @@ const getEmployees = async (req, res) => {
 //   }
 // };
 
-
-
 // ==========================================
 // REGISTER EMPLOYEE FACE
 // ==========================================
@@ -175,10 +190,7 @@ const registerEmployeeFace = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "Register Employee Face Error:",
-      error
-    );
+    console.error("Register Employee Face Error:", error);
 
     res.status(500).json({
       success: false,
