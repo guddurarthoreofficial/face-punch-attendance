@@ -592,6 +592,99 @@ const getAdminTodayAttendance = async (req, res) => {
   }
 };
 
+// const getAdminAttendance = async (req, res) => {
+//   try {
+//     if (req.user.role !== "admin") {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only admin can access attendance",
+//       });
+//     }
+
+//     const { date, search = "", status = "all" } = req.query;
+
+//     // const selectedDate = date || new Date().toISOString().split("T")[0];
+//     const selectedDate = date || getIndiaDateString();
+
+//     const employees = await User.find({
+//       role: "employee",
+//       isActive: true,
+//       ...(search
+//         ? {
+//             $or: [
+//               {
+//                 name: {
+//                   $regex: search,
+//                   $options: "i",
+//                 },
+//               },
+//               {
+//                 email: {
+//                   $regex: search,
+//                   $options: "i",
+//                 },
+//               },
+//             ],
+//           }
+//         : {}),
+//     }).select("_id name email phone");
+
+//     const attendanceRecords = await Attendance.find({
+//       date: selectedDate,
+//     });
+
+//     const attendanceMap = new Map();
+
+//     attendanceRecords.forEach((record) => {
+//       attendanceMap.set(record.employee.toString(), record);
+//     });
+
+//     let attendance = employees.map((employee) => {
+//       const record = attendanceMap.get(employee._id.toString());
+
+//       return {
+//         employee: {
+//           id: employee._id,
+//           name: employee.name,
+//           email: employee.email,
+//           phone: employee.phone,
+//         },
+
+//         attendance: record
+//           ? {
+//               id: record._id,
+//               date: record.date,
+//               checkIn: record.checkIn,
+//               checkOut: record.checkOut,
+//               status: record.status,
+//               faceVerified: record.faceVerified,
+//             }
+//           : null,
+
+//         status: record ? record.status : "absent",
+//       };
+//     });
+
+//     if (status !== "all") {
+//       attendance = attendance.filter((item) => item.status === status);
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       date: selectedDate,
+//       count: attendance.length,
+//       attendance,
+//     });
+//   } catch (error) {
+//     console.error("Get Admin Attendance Error:", error);
+
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error",
+//     });
+//   }
+// };
+
 const getAdminAttendance = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -603,12 +696,15 @@ const getAdminAttendance = async (req, res) => {
 
     const { date, search = "", status = "all" } = req.query;
 
-    // const selectedDate = date || new Date().toISOString().split("T")[0];
     const selectedDate = date || getIndiaDateString();
 
+    // ==========================================
+    // GET ACTIVE EMPLOYEES
+    // ==========================================
     const employees = await User.find({
       role: "employee",
       isActive: true,
+
       ...(search
         ? {
             $or: [
@@ -624,23 +720,51 @@ const getAdminAttendance = async (req, res) => {
                   $options: "i",
                 },
               },
+              {
+                phone: {
+                  $regex: search,
+                  $options: "i",
+                },
+              },
             ],
           }
         : {}),
     }).select("_id name email phone");
 
+    // ==========================================
+    // GET ATTENDANCE FOR SELECTED DATE
+    // ==========================================
     const attendanceRecords = await Attendance.find({
       date: selectedDate,
     });
 
+    // ==========================================
+    // CREATE ATTENDANCE MAP
+    // ==========================================
     const attendanceMap = new Map();
 
     attendanceRecords.forEach((record) => {
       attendanceMap.set(record.employee.toString(), record);
     });
 
+    // ==========================================
+    // MERGE EMPLOYEES + ATTENDANCE
+    // ==========================================
     let attendance = employees.map((employee) => {
       const record = attendanceMap.get(employee._id.toString());
+
+      let workingHours = null;
+
+      // Calculate working hours
+      if (record && record.checkIn && record.checkOut) {
+        const milliseconds =
+          new Date(record.checkOut).getTime() -
+          new Date(record.checkIn).getTime();
+
+        workingHours = Number((milliseconds / (1000 * 60 * 60)).toFixed(2));
+      }
+
+      const employeeStatus = record ? record.status : "absent";
 
       return {
         employee: {
@@ -656,29 +780,306 @@ const getAdminAttendance = async (req, res) => {
               date: record.date,
               checkIn: record.checkIn,
               checkOut: record.checkOut,
+
+              workingHours,
+
               status: record.status,
+
               faceVerified: record.faceVerified,
+
+              checkInLocation: record.checkInLocation,
+
+              checkOutLocation: record.checkOutLocation,
             }
           : null,
 
-        status: record ? record.status : "absent",
+        status: employeeStatus,
       };
     });
 
+    // ==========================================
+    // STATUS FILTER
+    // ==========================================
     if (status !== "all") {
       attendance = attendance.filter((item) => item.status === status);
     }
 
-    res.status(200).json({
+    // ==========================================
+    // SUMMARY
+    // ==========================================
+    const summary = {
+      totalEmployees: employees.length,
+
+      present: attendance.filter((item) => item.status === "present").length,
+
+      late: attendance.filter((item) => item.status === "late").length,
+
+      absent: attendance.filter((item) => item.status === "absent").length,
+
+      checkedOut: attendance.filter(
+        (item) => item.attendance && item.attendance.checkOut,
+      ).length,
+    };
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+    return res.status(200).json({
       success: true,
       date: selectedDate,
+      summary,
       count: attendance.length,
       attendance,
     });
   } catch (error) {
     console.error("Get Admin Attendance Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ==========================================
+// ADMIN DATE RANGE REPORT
+// ==========================================
+const getAdminAttendanceReport = async (req, res) => {
+  try {
+    // Only admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access attendance reports",
+      });
+    }
+
+    const { startDate, endDate, search = "" } = req.query;
+
+    // ==========================================
+    // VALIDATE DATES
+    // ==========================================
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "startDate and endDate are required",
+      });
+    }
+
+    // YYYY-MM-DD validation
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format. Use YYYY-MM-DD",
+      });
+    }
+
+    if (startDate > endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "startDate cannot be greater than endDate",
+      });
+    }
+
+    // ==========================================
+    // GET ACTIVE EMPLOYEES
+    // ==========================================
+
+    const employees = await User.find({
+      role: "employee",
+      isActive: true,
+
+      ...(search.trim()
+        ? {
+            $or: [
+              {
+                name: {
+                  $regex: search.trim(),
+                  $options: "i",
+                },
+              },
+              {
+                email: {
+                  $regex: search.trim(),
+                  $options: "i",
+                },
+              },
+              {
+                phone: {
+                  $regex: search.trim(),
+                  $options: "i",
+                },
+              },
+            ],
+          }
+        : {}),
+    }).select("_id name email phone");
+
+    // ==========================================
+    // GET ATTENDANCE RECORDS
+    // ==========================================
+
+    const attendanceRecords = await Attendance.find({
+      date: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+      employee: {
+        $in: employees.map((employee) => employee._id),
+      },
+    }).sort({
+      date: 1,
+      checkIn: 1,
+    });
+
+    // ==========================================
+    // CREATE EMPLOYEE ATTENDANCE MAP
+    // ==========================================
+
+    const attendanceMap = new Map();
+
+    attendanceRecords.forEach((record) => {
+      const employeeId = record.employee.toString();
+
+      if (!attendanceMap.has(employeeId)) {
+        attendanceMap.set(employeeId, []);
+      }
+
+      attendanceMap.get(employeeId).push(record);
+    });
+
+    // ==========================================
+    // EMPLOYEE-WISE SUMMARY
+    // ==========================================
+
+    const employeeReports = employees.map((employee) => {
+      const records = attendanceMap.get(employee._id.toString()) || [];
+
+      let present = 0;
+      let late = 0;
+      let absent = 0;
+      let checkedOut = 0;
+      let totalWorkingHours = 0;
+
+      records.forEach((record) => {
+        if (record.status === "late") {
+          late++;
+        }
+
+        if (record.status === "present") {
+          present++;
+        }
+
+        if (record.checkOut) {
+          checkedOut++;
+        }
+
+        if (record.checkIn && record.checkOut) {
+          const milliseconds =
+            new Date(record.checkOut).getTime() -
+            new Date(record.checkIn).getTime();
+
+          const hours = milliseconds / (1000 * 60 * 60);
+
+          totalWorkingHours += hours;
+        }
+      });
+
+      return {
+        employee: {
+          id: employee._id,
+          name: employee.name,
+          email: employee.email,
+          phone: employee.phone,
+        },
+
+        summary: {
+          present,
+          late,
+          absent,
+          checkedOut,
+          totalWorkingHours: Number(totalWorkingHours.toFixed(2)),
+        },
+      };
+    });
+
+    // ==========================================
+    // TOTAL SUMMARY
+    // ==========================================
+
+    const totalPresent = attendanceRecords.filter(
+      (record) => record.status === "present",
+    ).length;
+
+    const totalLate = attendanceRecords.filter(
+      (record) => record.status === "late",
+    ).length;
+
+    const totalCheckedOut = attendanceRecords.filter(
+      (record) => !!record.checkOut,
+    ).length;
+
+    let totalWorkingHours = 0;
+
+    attendanceRecords.forEach((record) => {
+      if (record.checkIn && record.checkOut) {
+        const milliseconds =
+          new Date(record.checkOut).getTime() -
+          new Date(record.checkIn).getTime();
+
+        totalWorkingHours += milliseconds / (1000 * 60 * 60);
+      }
+    });
+
+    // ==========================================
+    // CALCULATE WORKING DAYS
+    // ==========================================
+
+    const start = new Date(`${startDate}T00:00:00+05:30`);
+
+    const end = new Date(`${endDate}T00:00:00+05:30`);
+
+    const totalDays =
+      Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    return res.status(200).json({
+      success: true,
+
+      period: {
+        startDate,
+        endDate,
+        totalDays,
+      },
+
+      summary: {
+        totalEmployees: employees.length,
+
+        present: totalPresent,
+
+        late: totalLate,
+
+        absent: 0,
+
+        checkedOut: totalCheckedOut,
+
+        totalWorkingHours: Number(totalWorkingHours.toFixed(2)),
+      },
+
+      employeeReports,
+
+      attendance: attendanceRecords,
+    });
+  } catch (error) {
+    console.error("Get Admin Attendance Report Error:", error);
+
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
@@ -693,4 +1094,5 @@ module.exports = {
   getAdminDashboardStats,
   getAdminTodayAttendance,
   getAdminAttendance,
+  getAdminAttendanceReport,
 };

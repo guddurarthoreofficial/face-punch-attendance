@@ -8,6 +8,7 @@ const {
   getAdminDashboardStats,
   getAdminTodayAttendance,
   getAdminAttendance,
+  getAdminAttendanceReport,
 } = require("../controllers/attendanceController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -45,6 +46,13 @@ router.get(
   protect,
   authorize("admin"),
   getAdminTodayAttendance,
+);
+
+router.get(
+  "/admin/report",
+  protect,
+  authorize("admin"),
+  getAdminAttendanceReport,
 );
 
 router.get("/admin", protect, authorize("admin"), getAdminAttendance);
