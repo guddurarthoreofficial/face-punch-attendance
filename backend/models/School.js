@@ -57,6 +57,56 @@ const schoolSchema = new mongoose.Schema(
       },
     },
 
+    // =========================
+    // Weekly Off
+    // 0 = Sunday
+    // 1 = Monday
+    // 2 = Tuesday
+    // 3 = Wednesday
+    // 4 = Thursday
+    // 5 = Friday
+    // 6 = Saturday
+    // =========================
+
+    weeklyOffDays: {
+      type: [Number],
+      default: [0],
+      validate: {
+        validator: function (days) {
+          return days.every(
+            (day) =>
+              Number.isInteger(day) &&
+              day >= 0 &&
+              day <= 6
+          );
+        },
+        message:
+          "Weekly off days must contain values between 0 and 6",
+      },
+    },
+
+    // =========================
+    // Holidays
+    // =========================
+
+    holidays: [
+      {
+        _id: false,
+
+        date: {
+          type: String,
+          required: true,
+          match: /^\d{4}-\d{2}-\d{2}$/,
+        },
+
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+      },
+    ],
+
     isActive: {
       type: Boolean,
       default: true,
@@ -67,5 +117,4 @@ const schoolSchema = new mongoose.Schema(
   }
 );
 
-module.exports =
-  mongoose.model("School", schoolSchema);
+module.exports = mongoose.model("School", schoolSchema);

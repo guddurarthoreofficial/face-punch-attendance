@@ -4,6 +4,8 @@ const calculateDistance = require("../utils/distance");
 const User = require("../models/User");
 const { isFaceMatch } = require("../utils/faceMatch");
 
+const { getWorkingDates } = require("../utils/workingDays");
+
 const {
   getIndiaDateString,
   getIndiaTimeMinutes,
@@ -483,70 +485,152 @@ const getMyAttendance = async (req, res) => {
 // ==========================================
 const getAdminDashboardStats = async (req, res) => {
   try {
-    // Only admin
     if (req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
-        message: "Only admin can access dashboard statistics",
+        message: "Only admin can access dashboard stats",
       });
     }
 
-    // Today's date
-    // const today = new Date().toISOString().split("T")[0];
+    // ==========================================
+    // TODAY - INDIA DATE
+    // ==========================================
+
     const today = getIndiaDateString();
 
-    // Total active employees
-    const totalEmployees = await User.countDocuments({
-      role: "employee",
+    // ==========================================
+    // GET ACTIVE SCHOOL
+    // ==========================================
+
+    const school = await School.findOne({
       isActive: true,
     });
 
-    // Today's attendance
+    if (!school) {
+      return res.status(404).json({
+        success: false,
+        message: "Active school not found",
+      });
+    }
+
+    const weeklyOffDays =
+      Array.isArray(school.weeklyOffDays) && school.weeklyOffDays.length > 0
+        ? school.weeklyOffDays
+        : [0];
+
+    const holidays = Array.isArray(school.holidays) ? school.holidays : [];
+
+    // ==========================================
+    // CHECK WHETHER TODAY IS WORKING DAY
+    // ==========================================
+
+    const todayWorkingDates = getWorkingDates(
+      today,
+      today,
+      weeklyOffDays,
+      holidays,
+    );
+
+    const isTodayWorkingDay = todayWorkingDates.includes(today);
+
+    // ==========================================
+    // GET ACTIVE EMPLOYEES
+    // ==========================================
+
+    const activeEmployees = await User.find({
+      role: "employee",
+      isActive: true,
+    }).select("_id");
+
+    const activeEmployeeIds = activeEmployees.map((employee) => employee._id);
+
+    const totalEmployees = activeEmployeeIds.length;
+
     const todayAttendance = await Attendance.find({
       date: today,
-    }).select("employee checkIn checkOut status");
+      employee: {
+        $in: activeEmployeeIds,
+      },
+    });
+    // ==========================================
+    // GET TODAY ATTENDANCE
+    // ==========================================
 
-    // Present
+    // ==========================================
+    // PRESENT
+    // ==========================================
+
     const presentToday = todayAttendance.filter(
-      (item) => item.status === "present" || item.status === "late",
+      (record) => record.status === "present",
     ).length;
 
-    // Late
+    // ==========================================
+    // LATE
+    // ==========================================
+
     const lateToday = todayAttendance.filter(
-      (item) => item.status === "late",
+      (record) => record.status === "late",
     ).length;
 
-    // Currently checked in
-    const currentlyCheckedIn = todayAttendance.filter(
-      (item) => item.checkIn && !item.checkOut,
-    ).length;
+    // ==========================================
+    // CHECKED OUT
+    // ==========================================
 
-    // Checked out
     const checkedOutToday = todayAttendance.filter(
-      (item) => !!item.checkOut,
+      (record) => !!record.checkOut,
     ).length;
 
-    // Employees without attendance
-    const absentToday = Math.max(totalEmployees - presentToday, 0);
+    // ==========================================
+    // CURRENTLY CHECKED IN
+    // ==========================================
 
-    res.status(200).json({
+    const currentlyCheckedIn = todayAttendance.filter(
+      (record) => record.checkIn && !record.checkOut,
+    ).length;
+
+    // ==========================================
+    // REAL ABSENT
+    // ==========================================
+
+    let absentToday = 0;
+
+    if (isTodayWorkingDay) {
+      absentToday = Math.max(totalEmployees - todayAttendance.length, 0);
+    }
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    return res.status(200).json({
       success: true,
 
       date: today,
 
+      isWorkingDay: isTodayWorkingDay,
+
+      weeklyOffDays,
+
+      holiday: holidays.find((holiday) => holiday.date === today) || null,
+
       stats: {
         totalEmployees,
+
         presentToday,
+
         absentToday,
+
         lateToday,
+
         currentlyCheckedIn,
+
         checkedOutToday,
       },
     });
   } catch (error) {
     console.error("Get Admin Dashboard Stats Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
@@ -685,6 +769,9 @@ const getAdminTodayAttendance = async (req, res) => {
 //   }
 // };
 
+// ==========================================
+// ADMIN ATTENDANCE - DAILY REPORT
+// ==========================================
 const getAdminAttendance = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -699,30 +786,70 @@ const getAdminAttendance = async (req, res) => {
     const selectedDate = date || getIndiaDateString();
 
     // ==========================================
+    // GET ACTIVE SCHOOL
+    // ==========================================
+
+    const school = await School.findOne({
+      isActive: true,
+    });
+
+    if (!school) {
+      return res.status(404).json({
+        success: false,
+        message: "Active school not found",
+      });
+    }
+
+    // ==========================================
+    // SCHOOL WORKING RULES
+    // ==========================================
+
+    const weeklyOffDays =
+      Array.isArray(school.weeklyOffDays) && school.weeklyOffDays.length > 0
+        ? school.weeklyOffDays
+        : [0];
+
+    const holidays = Array.isArray(school.holidays) ? school.holidays : [];
+
+    // ==========================================
+    // CHECK WORKING DAY
+    // ==========================================
+
+    const workingDates = getWorkingDates(
+      selectedDate,
+      selectedDate,
+      weeklyOffDays,
+      holidays,
+    );
+
+    const isWorkingDay = workingDates.includes(selectedDate);
+
+    // ==========================================
     // GET ACTIVE EMPLOYEES
     // ==========================================
+
     const employees = await User.find({
       role: "employee",
       isActive: true,
 
-      ...(search
+      ...(search.trim()
         ? {
             $or: [
               {
                 name: {
-                  $regex: search,
+                  $regex: search.trim(),
                   $options: "i",
                 },
               },
               {
                 email: {
-                  $regex: search,
+                  $regex: search.trim(),
                   $options: "i",
                 },
               },
               {
                 phone: {
-                  $regex: search,
+                  $regex: search.trim(),
                   $options: "i",
                 },
               },
@@ -732,15 +859,21 @@ const getAdminAttendance = async (req, res) => {
     }).select("_id name email phone");
 
     // ==========================================
-    // GET ATTENDANCE FOR SELECTED DATE
+    // GET ATTENDANCE
     // ==========================================
+
     const attendanceRecords = await Attendance.find({
       date: selectedDate,
+
+      employee: {
+        $in: employees.map((employee) => employee._id),
+      },
     });
 
     // ==========================================
-    // CREATE ATTENDANCE MAP
+    // ATTENDANCE MAP
     // ==========================================
+
     const attendanceMap = new Map();
 
     attendanceRecords.forEach((record) => {
@@ -750,6 +883,7 @@ const getAdminAttendance = async (req, res) => {
     // ==========================================
     // MERGE EMPLOYEES + ATTENDANCE
     // ==========================================
+
     let attendance = employees.map((employee) => {
       const record = attendanceMap.get(employee._id.toString());
 
@@ -764,7 +898,20 @@ const getAdminAttendance = async (req, res) => {
         workingHours = Number((milliseconds / (1000 * 60 * 60)).toFixed(2));
       }
 
-      const employeeStatus = record ? record.status : "absent";
+      // ==========================================
+      // STATUS
+      // ==========================================
+
+      let employeeStatus;
+
+      if (record) {
+        employeeStatus = record.status;
+      } else if (isWorkingDay) {
+        employeeStatus = "absent";
+      } else {
+        // Weekly off / holiday
+        employeeStatus = "off";
+      }
 
       return {
         employee: {
@@ -777,8 +924,11 @@ const getAdminAttendance = async (req, res) => {
         attendance: record
           ? {
               id: record._id,
+
               date: record.date,
+
               checkIn: record.checkIn,
+
               checkOut: record.checkOut,
 
               workingHours,
@@ -800,6 +950,7 @@ const getAdminAttendance = async (req, res) => {
     // ==========================================
     // STATUS FILTER
     // ==========================================
+
     if (status !== "all") {
       attendance = attendance.filter((item) => item.status === status);
     }
@@ -807,6 +958,7 @@ const getAdminAttendance = async (req, res) => {
     // ==========================================
     // SUMMARY
     // ==========================================
+
     const summary = {
       totalEmployees: employees.length,
 
@@ -824,11 +976,23 @@ const getAdminAttendance = async (req, res) => {
     // ==========================================
     // RESPONSE
     // ==========================================
+
     return res.status(200).json({
       success: true,
+
       date: selectedDate,
+
+      isWorkingDay,
+
+      weeklyOffDays,
+
+      holiday:
+        holidays.find((holiday) => holiday.date === selectedDate) || null,
+
       summary,
+
       count: attendance.length,
+
       attendance,
     });
   } catch (error) {
@@ -846,7 +1010,6 @@ const getAdminAttendance = async (req, res) => {
 // ==========================================
 const getAdminAttendanceReport = async (req, res) => {
   try {
-    // Only admin
     if (req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -857,7 +1020,7 @@ const getAdminAttendanceReport = async (req, res) => {
     const { startDate, endDate, search = "" } = req.query;
 
     // ==========================================
-    // VALIDATE DATES
+    // VALIDATION
     // ==========================================
 
     if (!startDate || !endDate) {
@@ -867,7 +1030,6 @@ const getAdminAttendanceReport = async (req, res) => {
       });
     }
 
-    // YYYY-MM-DD validation
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
     if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
@@ -883,6 +1045,41 @@ const getAdminAttendanceReport = async (req, res) => {
         message: "startDate cannot be greater than endDate",
       });
     }
+
+    // ==========================================
+    // GET SCHOOL SETTINGS
+    // ==========================================
+
+    const school = await School.findOne({
+      isActive: true,
+    });
+
+    if (!school) {
+      return res.status(404).json({
+        success: false,
+        message: "Active school not found",
+      });
+    }
+
+    const weeklyOffDays =
+      Array.isArray(school.weeklyOffDays) && school.weeklyOffDays.length > 0
+        ? school.weeklyOffDays
+        : [0];
+
+    const holidays = Array.isArray(school.holidays) ? school.holidays : [];
+
+    // ==========================================
+    // GET WORKING DATES
+    // ==========================================
+
+    const workingDates = getWorkingDates(
+      startDate,
+      endDate,
+      weeklyOffDays,
+      holidays,
+    );
+
+    const workingDays = workingDates.length;
 
     // ==========================================
     // GET ACTIVE EMPLOYEES
@@ -927,6 +1124,7 @@ const getAdminAttendanceReport = async (req, res) => {
         $gte: startDate,
         $lte: endDate,
       },
+
       employee: {
         $in: employees.map((employee) => employee._id),
       },
@@ -936,7 +1134,7 @@ const getAdminAttendanceReport = async (req, res) => {
     });
 
     // ==========================================
-    // CREATE EMPLOYEE ATTENDANCE MAP
+    // GROUP ATTENDANCE BY EMPLOYEE
     // ==========================================
 
     const attendanceMap = new Map();
@@ -952,25 +1150,26 @@ const getAdminAttendanceReport = async (req, res) => {
     });
 
     // ==========================================
-    // EMPLOYEE-WISE SUMMARY
+    // EMPLOYEE REPORT
     // ==========================================
 
     const employeeReports = employees.map((employee) => {
       const records = attendanceMap.get(employee._id.toString()) || [];
 
+      const attendanceDates = new Set(records.map((record) => record.date));
+
       let present = 0;
       let late = 0;
-      let absent = 0;
       let checkedOut = 0;
       let totalWorkingHours = 0;
 
       records.forEach((record) => {
-        if (record.status === "late") {
-          late++;
-        }
-
         if (record.status === "present") {
           present++;
+        }
+
+        if (record.status === "late") {
+          late++;
         }
 
         if (record.checkOut) {
@@ -984,9 +1183,19 @@ const getAdminAttendanceReport = async (req, res) => {
 
           const hours = milliseconds / (1000 * 60 * 60);
 
-          totalWorkingHours += hours;
+          if (hours > 0) {
+            totalWorkingHours += hours;
+          }
         }
       });
+
+      // ==========================================
+      // REAL ABSENT CALCULATION
+      // ==========================================
+
+      const absent = workingDates.filter(
+        (workingDate) => !attendanceDates.has(workingDate),
+      ).length;
 
       return {
         employee: {
@@ -997,6 +1206,7 @@ const getAdminAttendanceReport = async (req, res) => {
         },
 
         summary: {
+          workingDays,
           present,
           late,
           absent,
@@ -1007,7 +1217,7 @@ const getAdminAttendanceReport = async (req, res) => {
     });
 
     // ==========================================
-    // TOTAL SUMMARY
+    // GLOBAL SUMMARY
     // ==========================================
 
     const totalPresent = attendanceRecords.filter(
@@ -1022,6 +1232,15 @@ const getAdminAttendanceReport = async (req, res) => {
       (record) => !!record.checkOut,
     ).length;
 
+    const totalAbsent = employeeReports.reduce(
+      (total, employee) => total + employee.summary.absent,
+      0,
+    );
+
+    // ==========================================
+    // TOTAL WORKING HOURS
+    // ==========================================
+
     let totalWorkingHours = 0;
 
     attendanceRecords.forEach((record) => {
@@ -1035,7 +1254,7 @@ const getAdminAttendanceReport = async (req, res) => {
     });
 
     // ==========================================
-    // CALCULATE WORKING DAYS
+    // TOTAL CALENDAR DAYS
     // ==========================================
 
     const start = new Date(`${startDate}T00:00:00+05:30`);
@@ -1056,16 +1275,24 @@ const getAdminAttendanceReport = async (req, res) => {
         startDate,
         endDate,
         totalDays,
+        workingDays,
+      },
+
+      settings: {
+        weeklyOffDays,
+        holidays,
       },
 
       summary: {
         totalEmployees: employees.length,
 
+        workingDays,
+
         present: totalPresent,
 
         late: totalLate,
 
-        absent: 0,
+        absent: totalAbsent,
 
         checkedOut: totalCheckedOut,
 
