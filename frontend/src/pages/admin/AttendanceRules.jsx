@@ -2,6 +2,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../../services/api";
 
+const WEEK_DAYS = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+];
+
 function AttendanceRules() {
   const navigate = useNavigate();
 
@@ -12,6 +22,25 @@ function AttendanceRules() {
     allowEarlyCheckout: false,
   });
 
+  // ==========================================
+  // WORKING DAYS
+  // ==========================================
+
+  const [weeklyOffDays, setWeeklyOffDays] = useState([0]);
+
+  // ==========================================
+  // HOLIDAYS
+  // ==========================================
+
+  const [holidays, setHolidays] = useState([]);
+
+  const [holidayDate, setHolidayDate] = useState("");
+  const [holidayName, setHolidayName] = useState("");
+
+  // ==========================================
+  // UI STATES
+  // ==========================================
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -19,7 +48,7 @@ function AttendanceRules() {
   const [success, setSuccess] = useState("");
 
   // ==========================================
-  // GET SCHOOL ATTENDANCE RULES
+  // GET SCHOOL SETTINGS
   // ==========================================
 
   const fetchRules = async () => {
@@ -46,6 +75,18 @@ function AttendanceRules() {
         allowEarlyCheckout:
           rules.allowEarlyCheckout ?? false,
       });
+
+      setWeeklyOffDays(
+        Array.isArray(school.weeklyOffDays)
+          ? school.weeklyOffDays
+          : [0]
+      );
+
+      setHolidays(
+        Array.isArray(school.holidays)
+          ? school.holidays
+          : []
+      );
     } catch (error) {
       console.error(
         "Get Attendance Rules Error:",
@@ -54,7 +95,7 @@ function AttendanceRules() {
 
       setError(
         error.message ||
-          "Failed to load attendance rules."
+          "Failed to load attendance settings."
       );
     } finally {
       setLoading(false);
@@ -86,7 +127,87 @@ function AttendanceRules() {
   };
 
   // ==========================================
-  // SAVE RULES
+  // WEEKLY OFF TOGGLE
+  // ==========================================
+
+  const handleWeeklyOffChange = (day) => {
+    setWeeklyOffDays((previous) => {
+      if (previous.includes(day)) {
+        return previous.filter(
+          (item) => item !== day
+        );
+      }
+
+      return [...previous, day].sort(
+        (a, b) => a - b
+      );
+    });
+
+    setError("");
+    setSuccess("");
+  };
+
+  // ==========================================
+  // ADD HOLIDAY
+  // ==========================================
+
+  const handleAddHoliday = () => {
+    setError("");
+    setSuccess("");
+
+    if (!holidayDate) {
+      setError("Please select a holiday date.");
+      return;
+    }
+
+    if (!holidayName.trim()) {
+      setError("Please enter a holiday name.");
+      return;
+    }
+
+    const alreadyExists = holidays.some(
+      (holiday) =>
+        holiday.date === holidayDate
+    );
+
+    if (alreadyExists) {
+      setError(
+        "A holiday already exists for this date."
+      );
+      return;
+    }
+
+    setHolidays((previous) => [
+      ...previous,
+      {
+        date: holidayDate,
+        name: holidayName.trim(),
+      },
+    ].sort((a, b) =>
+      a.date.localeCompare(b.date)
+    ));
+
+    setHolidayDate("");
+    setHolidayName("");
+  };
+
+  // ==========================================
+  // DELETE HOLIDAY
+  // ==========================================
+
+  const handleDeleteHoliday = (date) => {
+    setHolidays((previous) =>
+      previous.filter(
+        (holiday) => holiday.date !== date
+      )
+    );
+
+    setError("");
+    setSuccess("");
+  };
+
+  // ==========================================
+  // SAVE ALL SETTINGS
   // ==========================================
 
   const handleSubmit = async (e) => {
@@ -144,11 +265,10 @@ function AttendanceRules() {
       setSaving(true);
 
       /*
-       * IMPORTANT:
-       * Existing SchoolLocation page already
-       * uses PUT /school.
+       * Existing SchoolLocation page also uses
+       * PUT /school.
        *
-       * We first fetch the existing school so
+       * Fetch current school first so that
        * location settings are preserved.
        */
 
@@ -186,39 +306,66 @@ function AttendanceRules() {
               allowEarlyCheckout:
                 form.allowEarlyCheckout,
             },
+
+            weeklyOffDays,
+
+            holidays,
           }),
         }
       );
 
+      const updatedSchool =
+        data.school;
+
       const updatedRules =
-        data.school.attendanceRules;
+        updatedSchool.attendanceRules || {};
 
       setForm({
         checkInTime:
-          updatedRules.checkInTime,
+          updatedRules.checkInTime ||
+          "09:00",
 
         lateAfterMinutes:
-          updatedRules.lateAfterMinutes,
+          updatedRules.lateAfterMinutes ??
+          15,
 
         minimumWorkingHours:
-          updatedRules.minimumWorkingHours,
+          updatedRules.minimumWorkingHours ??
+          8,
 
         allowEarlyCheckout:
-          updatedRules.allowEarlyCheckout,
+          updatedRules.allowEarlyCheckout ??
+          false,
       });
 
+      setWeeklyOffDays(
+        Array.isArray(
+          updatedSchool.weeklyOffDays
+        )
+          ? updatedSchool.weeklyOffDays
+          : [0]
+      );
+
+      setHolidays(
+        Array.isArray(
+          updatedSchool.holidays
+        )
+          ? updatedSchool.holidays
+          : []
+      );
+
       setSuccess(
-        "Attendance rules updated successfully ✅"
+        "Attendance settings updated successfully ✅"
       );
     } catch (error) {
       console.error(
-        "Update Attendance Rules Error:",
+        "Update Attendance Settings Error:",
         error
       );
 
       setError(
         error.message ||
-          "Failed to update attendance rules."
+          "Failed to update attendance settings."
       );
     } finally {
       setSaving(false);
@@ -233,7 +380,7 @@ function AttendanceRules() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <p className="text-slate-400">
-          Loading attendance rules...
+          Loading attendance settings...
         </p>
       </div>
     );
@@ -245,6 +392,7 @@ function AttendanceRules() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+
       {/* HEADER */}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -254,8 +402,8 @@ function AttendanceRules() {
           </h1>
 
           <p className="mt-1 text-sm text-slate-400">
-            Configure check-in, late marking and
-            working-hour policies.
+            Configure attendance, working days and
+            holiday policies.
           </p>
         </div>
 
@@ -290,13 +438,14 @@ function AttendanceRules() {
         </div>
       )}
 
-      {/* RULES CARD */}
+      {/* ======================================
+          WORKING HOURS POLICY
+      ======================================= */}
 
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border border-slate-800 bg-slate-900 p-5 sm:p-6 lg:p-8"
       >
-        {/* SECTION HEADER */}
 
         <div className="border-b border-slate-800 pb-6">
           <div className="flex items-start gap-4">
@@ -342,6 +491,7 @@ function AttendanceRules() {
         {/* TWO COLUMNS */}
 
         <div className="mt-6 grid gap-6 md:grid-cols-2">
+
           {/* LATE */}
 
           <div>
@@ -439,7 +589,199 @@ function AttendanceRules() {
           </div>
         </div>
 
-        {/* CURRENT RULE SUMMARY */}
+        {/* ======================================
+            WEEKLY OFF DAYS
+        ======================================= */}
+
+        <div className="mt-7 rounded-2xl border border-slate-800 bg-slate-950/60 p-5 sm:p-6">
+
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-xl">
+              📅
+            </div>
+
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Weekly Off Days
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Select the days when the school is normally
+                closed every week.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-7">
+            {WEEK_DAYS.map((day) => {
+              const selected =
+                weeklyOffDays.includes(
+                  day.value
+                );
+
+              return (
+                <label
+                  key={day.value}
+                  className={`cursor-pointer rounded-xl border p-3 text-center transition ${
+                    selected
+                      ? "border-purple-500/50 bg-purple-500/10"
+                      : "border-slate-800 bg-slate-900 hover:border-slate-700"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() =>
+                      handleWeeklyOffChange(
+                        day.value
+                      )
+                    }
+                    className="sr-only"
+                  />
+
+                  <div
+                    className={`mx-auto flex h-5 w-5 items-center justify-center rounded-md border text-xs ${
+                      selected
+                        ? "border-purple-500 bg-purple-600 text-white"
+                        : "border-slate-600"
+                    }`}
+                  >
+                    {selected && "✓"}
+                  </div>
+
+                  <p
+                    className={`mt-2 text-sm font-medium ${
+                      selected
+                        ? "text-purple-300"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {day.label}
+                  </p>
+                </label>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 text-xs text-slate-500">
+            Selected days will not count as working days
+            and employees will not be marked absent on them.
+          </p>
+        </div>
+
+        {/* ======================================
+            HOLIDAY MANAGEMENT
+        ======================================= */}
+
+        <div className="mt-7 rounded-2xl border border-slate-800 bg-slate-950/60 p-5 sm:p-6">
+
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-xl">
+              🎉
+            </div>
+
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Holiday Management
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Add school holidays so they are excluded
+                from working-day and absence calculations.
+              </p>
+            </div>
+          </div>
+
+          {/* ADD HOLIDAY */}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-[180px_1fr_auto]">
+
+            <input
+              type="date"
+              value={holidayDate}
+              onChange={(e) =>
+                setHolidayDate(
+                  e.target.value
+                )
+              }
+              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-blue-500"
+            />
+
+            <input
+              type="text"
+              value={holidayName}
+              onChange={(e) =>
+                setHolidayName(
+                  e.target.value
+                )
+              }
+              placeholder="Holiday name e.g. Diwali"
+              maxLength={100}
+              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white placeholder:text-slate-600 outline-none transition focus:border-blue-500"
+            />
+
+            <button
+              type="button"
+              onClick={handleAddHoliday}
+              className="rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-500"
+            >
+              + Add Holiday
+            </button>
+          </div>
+
+          {/* HOLIDAY LIST */}
+
+          <div className="mt-5">
+
+            {holidays.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-800 px-4 py-8 text-center">
+                <p className="text-sm text-slate-500">
+                  No holidays added yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {holidays.map((holiday) => (
+                  <div
+                    key={holiday.date}
+                    className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-white">
+                        {holiday.name}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        {holiday.date}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDeleteHoliday(
+                          holiday.date
+                        )
+                      }
+                      className="w-fit rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p className="mt-4 text-xs text-slate-500">
+            Holidays are saved together with the attendance
+            rules when you click the save button below.
+          </p>
+        </div>
+
+        {/* ======================================
+            CURRENT RULE SUMMARY
+        ======================================= */}
 
         <div className="mt-7">
           <h3 className="mb-3 text-sm font-semibold text-slate-300">
@@ -447,6 +789,7 @@ function AttendanceRules() {
           </h3>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+
             <div className="rounded-xl bg-slate-950 p-4">
               <p className="text-xs text-slate-500">
                 Check-In
@@ -479,9 +822,12 @@ function AttendanceRules() {
           </div>
         </div>
 
-        {/* ACTIONS */}
+        {/* ======================================
+            ACTIONS
+        ======================================= */}
 
         <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-800 pt-6 sm:flex-row sm:justify-end">
+
           <button
             type="button"
             onClick={() =>
@@ -498,9 +844,10 @@ function AttendanceRules() {
             className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving
-              ? "Saving Rules..."
-              : "Save Attendance Rules"}
+              ? "Saving Settings..."
+              : "Save Attendance Settings"}
           </button>
+
         </div>
       </form>
     </div>
