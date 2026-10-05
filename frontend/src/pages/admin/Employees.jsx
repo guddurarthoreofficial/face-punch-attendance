@@ -1539,8 +1539,8 @@ function Employees() {
 ====================================== */}
 
       {showProfileModal && profileEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-3 sm:p-4">
+          <div className="mx-auto my-3 flex w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl sm:my-6 sm:max-h-[calc(100dvh-3rem)]">
 
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
@@ -1564,7 +1564,7 @@ function Employees() {
             </div>
 
             {/* Profile Content */}
-            <div className="space-y-6 p-6">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
 
               {/* Employee Basic Information */}
               <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950 p-5 sm:flex-row sm:items-center">
