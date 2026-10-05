@@ -388,7 +388,9 @@ const getEmployeeDetails = async (req, res) => {
     const employee = await User.findOne({
       _id: employeeId,
       role: "employee",
-    }).select("name email phone role isActive faceData createdAt updatedAt");
+    }).select(
+      "name email phone role isActive faceData createdAt updatedAt"
+    );
 
     if (!employee) {
       return res.status(404).json({
@@ -397,9 +399,19 @@ const getEmployeeDetails = async (req, res) => {
       });
     }
 
+    // ==========================================
+    // ALL ATTENDANCE RECORDS
+    // ==========================================
+
     const attendanceRecords = await Attendance.find({
       employee: employeeId,
-    }).lean();
+    })
+      .sort({ date: -1 })
+      .lean();
+
+    // ==========================================
+    // ATTENDANCE SUMMARY
+    // ==========================================
 
     let present = 0;
     let late = 0;
@@ -415,13 +427,38 @@ const getEmployeeDetails = async (req, res) => {
       }
     });
 
-    const totalAttendanceRecords = attendanceRecords.length;
+    // ==========================================
+    // RECENT ATTENDANCE
+    // ==========================================
+
+    const recentAttendance = attendanceRecords
+      .slice(0, 5)
+      .map((record) => ({
+        id: record._id,
+        date: record.date,
+        status: record.status,
+        checkIn: record.checkIn,
+        checkOut: record.checkOut,
+        faceVerified: record.faceVerified,
+        checkInLocation: record.checkInLocation,
+        checkOutLocation: record.checkOutLocation,
+      }));
+
+    // ==========================================
+    // FACE STATUS
+    // ==========================================
 
     const faceRegistered =
-      Array.isArray(employee.faceData) && employee.faceData.length === 128;
+      Array.isArray(employee.faceData) &&
+      employee.faceData.length === 128;
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
 
     return res.status(200).json({
       success: true,
+
       employee: {
         id: employee._id,
         name: employee.name,
@@ -437,8 +474,10 @@ const getEmployeeDetails = async (req, res) => {
           present,
           late,
           absent,
-          totalAttendanceRecords,
+          totalAttendanceRecords: attendanceRecords.length,
         },
+
+        recentAttendance,
       },
     });
   } catch (error) {
@@ -450,6 +489,7 @@ const getEmployeeDetails = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   createEmployee,

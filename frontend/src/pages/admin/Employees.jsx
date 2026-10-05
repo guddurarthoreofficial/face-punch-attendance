@@ -1705,6 +1705,140 @@ function Employees() {
                 </div>
               </div>
 
+              {/* ======================================
+    RECENT ATTENDANCE
+====================================== */}
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                    Recent Attendance
+                  </h3>
+
+                  <span className="text-xs text-slate-500">
+                    Last 5 records
+                  </span>
+                </div>
+
+                {profileEmployee.recentAttendance?.length > 0 ? (
+                  <div className="overflow-hidden rounded-xl border border-slate-800">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[650px]">
+                        <thead className="bg-slate-800">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Date
+                            </th>
+
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Status
+                            </th>
+
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Check In
+                            </th>
+
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Check Out
+                            </th>
+
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Face
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {profileEmployee.recentAttendance.map(
+                            (attendance) => (
+                              <tr
+                                key={attendance.id}
+                                className="border-t border-slate-800"
+                              >
+                                {/* DATE */}
+                                <td className="px-4 py-3 text-sm text-slate-300">
+                                  {attendance.date
+                                    ? new Date(
+                                      `${attendance.date}T00:00:00`
+                                    ).toLocaleDateString("en-IN", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                    })
+                                    : "—"}
+                                </td>
+
+                                {/* STATUS */}
+                                <td className="px-4 py-3">
+                                  {attendance.status === "late" ? (
+                                    <span className="inline-flex rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400">
+                                      Late
+                                    </span>
+                                  ) : attendance.status === "present" ? (
+                                    <span className="inline-flex rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                                      Present
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400">
+                                      Absent
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* CHECK IN */}
+                                <td className="px-4 py-3 text-sm text-slate-300">
+                                  {attendance.checkIn
+                                    ? new Date(
+                                      attendance.checkIn
+                                    ).toLocaleTimeString("en-IN", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
+                                    : "—"}
+                                </td>
+
+                                {/* CHECK OUT */}
+                                <td className="px-4 py-3 text-sm text-slate-300">
+                                  {attendance.checkOut
+                                    ? new Date(
+                                      attendance.checkOut
+                                    ).toLocaleTimeString("en-IN", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
+                                    : "—"}
+                                </td>
+
+                                {/* FACE */}
+                                <td className="px-4 py-3">
+                                  {attendance.faceVerified ? (
+                                    <span className="text-sm font-medium text-emerald-400">
+                                      ✓ Verified
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm font-medium text-slate-500">
+                                      —
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-6 text-center">
+                    <p className="text-sm text-slate-500">
+                      No attendance records found.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Joining Information */}
               <div>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
