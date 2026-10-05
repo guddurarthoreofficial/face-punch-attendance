@@ -57,6 +57,7 @@ function Employees() {
     phone: "",
   });
 
+
   // ==========================================
   // STATUS UPDATE
   // ==========================================
@@ -146,6 +147,139 @@ function Employees() {
     });
 
     setError("");
+  };
+
+
+  // ==========================================
+  // RESET PASSWORD
+  // ==========================================
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordEmployee, setPasswordEmployee] = useState(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
+
+  const [passwordForm, setPasswordForm] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+
+  // ==========================================
+  // OPEN PASSWORD RESET MODAL
+  // ==========================================
+
+  const openPasswordModal = (employee) => {
+    setPasswordEmployee(employee);
+
+    setPasswordForm({
+      newPassword: "",
+      confirmPassword: "",
+    });
+
+    setError("");
+    setSuccess("");
+
+    setShowPasswordModal(true);
+  };
+
+  // ==========================================
+  // CLOSE PASSWORD RESET MODAL
+  // ==========================================
+
+  const closePasswordModal = () => {
+    if (resettingPassword) return;
+
+    setShowPasswordModal(false);
+    setPasswordEmployee(null);
+
+    setPasswordForm({
+      newPassword: "",
+      confirmPassword: "",
+    });
+
+    setError("");
+  };
+
+  // ==========================================
+  // RESET EMPLOYEE PASSWORD
+  // ==========================================
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (!passwordEmployee) return;
+
+    setError("");
+    setSuccess("");
+
+    const newPassword = passwordForm.newPassword;
+    const confirmPassword = passwordForm.confirmPassword;
+
+    // ------------------------------------------
+    // VALIDATION
+    // ------------------------------------------
+
+    if (!newPassword) {
+      setError("New password is required.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (!confirmPassword) {
+      setError("Please confirm the new password.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    // ------------------------------------------
+    // API
+    // ------------------------------------------
+
+    try {
+      setResettingPassword(true);
+
+      await apiRequest(
+        `/employees/${passwordEmployee._id}/password`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            newPassword,
+          }),
+        }
+      );
+
+      setSuccess(
+        `Password reset successfully for ${passwordEmployee.name} ✅`
+      );
+
+      setShowPasswordModal(false);
+      setPasswordEmployee(null);
+
+      setPasswordForm({
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch (error) {
+      console.error(
+        "Reset Employee Password Error:",
+        error
+      );
+
+      setError(
+        error.message ||
+        "Failed to reset employee password."
+      );
+    } finally {
+      setResettingPassword(false);
+    }
   };
 
   // ==========================================
@@ -493,6 +627,8 @@ function Employees() {
     });
   }, [employees, search]);
 
+
+
   // ==========================================
   // UI
   // ==========================================
@@ -610,7 +746,8 @@ function Employees() {
 
         {error &&
           !showAddModal &&
-          !showEditModal && (
+          !showEditModal &&
+          !showPasswordModal && (
             <div className="mb-5 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
               <p className="text-sm text-red-300">
                 {error}
@@ -789,6 +926,8 @@ function Employees() {
 
                           {/* ACTIONS */}
 
+
+
                           <td className="px-6 py-4">
 
                             <div className="flex flex-wrap gap-2">
@@ -837,8 +976,8 @@ function Employees() {
                                   employee._id
                                 }
                                 className={`rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${employee.isActive
-                                    ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
-                                    : "bg-green-500/10 text-green-300 hover:bg-green-500/20"
+                                  ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                                  : "bg-green-500/10 text-green-300 hover:bg-green-500/20"
                                   }`}
                               >
                                 {statusUpdatingId ===
@@ -847,6 +986,16 @@ function Employees() {
                                   : employee.isActive
                                     ? "Deactivate"
                                     : "Activate"}
+                              </button>
+
+                              {/* RESET PASSWORD */}
+
+                              <button
+                                type="button"
+                                onClick={() => openPasswordModal(employee)}
+                                className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium transition hover:bg-amber-500"
+                              >
+                                Reset Password
                               </button>
 
                             </div>
@@ -1200,6 +1349,148 @@ function Employees() {
 
           </div>
         )}
+
+      {/* ======================================
+          RESET PASSWORD MODAL
+      ======================================= */}
+
+      {showPasswordModal && passwordEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* HEADER */}
+
+            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  Reset Password
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Set a new password for this employee.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                disabled={resettingPassword}
+                className="text-2xl text-slate-500 transition hover:text-white disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* FORM */}
+
+            <form
+              onSubmit={handleResetPassword}
+              className="space-y-5 p-6"
+            >
+
+              {/* EMPLOYEE INFO */}
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                <p className="font-semibold text-white">
+                  {passwordEmployee.name}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {passwordEmployee.email}
+                </p>
+              </div>
+
+              {/* ERROR */}
+
+              {error && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3">
+                  <p className="text-sm text-red-300">
+                    {error}
+                  </p>
+                </div>
+              )}
+
+              {/* NEW PASSWORD */}
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  New Password
+                </label>
+
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => {
+                    setPasswordForm((previous) => ({
+                      ...previous,
+                      newPassword: e.target.value,
+                    }));
+
+                    setError("");
+                    setSuccess("");
+                  }}
+                  placeholder="Minimum 6 characters"
+                  minLength={6}
+                  autoComplete="new-password"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-amber-500"
+                />
+              </div>
+
+              {/* CONFIRM PASSWORD */}
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                  Confirm Password
+                </label>
+
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => {
+                    setPasswordForm((previous) => ({
+                      ...previous,
+                      confirmPassword: e.target.value,
+                    }));
+
+                    setError("");
+                    setSuccess("");
+                  }}
+                  placeholder="Re-enter new password"
+                  minLength={6}
+                  autoComplete="new-password"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-amber-500"
+                />
+              </div>
+
+              {/* ACTIONS */}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-800 pt-5 sm:flex-row sm:justify-end">
+
+                <button
+                  type="button"
+                  onClick={closePasswordModal}
+                  disabled={resettingPassword}
+                  className="rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={resettingPassword}
+                  className="rounded-xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resettingPassword
+                    ? "Resetting..."
+                    : "Reset Password"}
+                </button>
+
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

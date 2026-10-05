@@ -1,7 +1,6 @@
 const User = require("../models/User");
 const mongoose = require("mongoose");
 
-
 // ==========================================
 // CREATE EMPLOYEE
 // ==========================================
@@ -76,10 +75,9 @@ const getEmployees = async (req, res) => {
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt,
 
-      // Only send registration status.
-      // Never send the actual face descriptor.
       faceRegistered:
-        Array.isArray(employee.faceData) && employee.faceData.length === 128,
+        Array.isArray(employee.faceData) &&
+        employee.faceData.length === 128,
     }));
 
     res.status(200).json({
@@ -147,7 +145,6 @@ const registerEmployeeFace = async (req, res) => {
     });
   }
 };
-
 
 // ==========================================
 // UPDATE EMPLOYEE
@@ -299,10 +296,78 @@ const toggleEmployeeStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "Toggle Employee Status Error:",
-      error
-    );
+    console.error("Toggle Employee Status Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ==========================================
+// RESET EMPLOYEE PASSWORD
+// ==========================================
+const resetEmployeePassword = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { newPassword } = req.body;
+
+    // Validate employee ID
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid employee ID",
+      });
+    }
+
+    // Validate password
+    if (!newPassword || typeof newPassword !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "New password is required",
+      });
+    }
+
+    const cleanPassword = newPassword.trim();
+
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    // Find employee only
+    const employee = await User.findOne({
+      _id: employeeId,
+      role: "employee",
+    }).select("+password");
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Update password
+    employee.password = cleanPassword;
+
+    // User model pre-save middleware will hash the password
+    await employee.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Employee password reset successfully",
+      employee: {
+        id: employee._id,
+        name: employee.name,
+        email: employee.email,
+      },
+    });
+  } catch (error) {
+    console.error("Reset Employee Password Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -317,4 +382,5 @@ module.exports = {
   updateEmployee,
   toggleEmployeeStatus,
   registerEmployeeFace,
+  resetEmployeePassword,
 };
