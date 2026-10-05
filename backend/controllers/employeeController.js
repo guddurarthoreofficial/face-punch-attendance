@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const mongoose = require("mongoose");
+const Attendance = require("../models/Attendance");
 
 // ==========================================
 // CREATE EMPLOYEE
@@ -76,8 +77,7 @@ const getEmployees = async (req, res) => {
       updatedAt: employee.updatedAt,
 
       faceRegistered:
-        Array.isArray(employee.faceData) &&
-        employee.faceData.length === 128,
+        Array.isArray(employee.faceData) && employee.faceData.length === 128,
     }));
 
     res.status(200).json({
@@ -234,8 +234,7 @@ const updateEmployee = async (req, res) => {
         role: employee.role,
         isActive: employee.isActive,
         faceRegistered:
-          Array.isArray(employee.faceData) &&
-          employee.faceData.length === 128,
+          Array.isArray(employee.faceData) && employee.faceData.length === 128,
       },
     });
   } catch (error) {
@@ -291,8 +290,7 @@ const toggleEmployeeStatus = async (req, res) => {
         role: employee.role,
         isActive: employee.isActive,
         faceRegistered:
-          Array.isArray(employee.faceData) &&
-          employee.faceData.length === 128,
+          Array.isArray(employee.faceData) && employee.faceData.length === 128,
       },
     });
   } catch (error) {
@@ -376,9 +374,87 @@ const resetEmployeePassword = async (req, res) => {
   }
 };
 
+const getEmployeeDetails = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid employee ID",
+      });
+    }
+
+    const employee = await User.findOne({
+      _id: employeeId,
+      role: "employee",
+    }).select("name email phone role isActive faceData createdAt updatedAt");
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    const attendanceRecords = await Attendance.find({
+      employee: employeeId,
+    }).lean();
+
+    let present = 0;
+    let late = 0;
+    let absent = 0;
+
+    attendanceRecords.forEach((record) => {
+      if (record.status === "late") {
+        late++;
+      } else if (record.status === "present") {
+        present++;
+      } else if (record.status === "absent") {
+        absent++;
+      }
+    });
+
+    const totalAttendanceRecords = attendanceRecords.length;
+
+    const faceRegistered =
+      Array.isArray(employee.faceData) && employee.faceData.length === 128;
+
+    return res.status(200).json({
+      success: true,
+      employee: {
+        id: employee._id,
+        name: employee.name,
+        email: employee.email,
+        phone: employee.phone,
+        role: employee.role,
+        isActive: employee.isActive,
+        faceRegistered,
+        createdAt: employee.createdAt,
+        updatedAt: employee.updatedAt,
+
+        attendanceSummary: {
+          present,
+          late,
+          absent,
+          totalAttendanceRecords,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get Employee Details Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   createEmployee,
   getEmployees,
+  getEmployeeDetails,
   updateEmployee,
   toggleEmployeeStatus,
   registerEmployeeFace,

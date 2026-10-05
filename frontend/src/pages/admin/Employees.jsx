@@ -9,6 +9,10 @@ function Employees() {
   // EMPLOYEES
   // ==========================================
 
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileEmployee, setProfileEmployee] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
   const [employees, setEmployees] = useState([]);
 
   // ==========================================
@@ -393,6 +397,34 @@ function Employees() {
     }
   };
 
+
+
+  const openEmployeeProfile = async (employee) => {
+    try {
+      setLoadingProfile(true);
+      setError("");
+      setSuccess("");
+
+      const response = await apiRequest(
+        `/employees/${employee._id}`
+      );
+
+      setProfileEmployee(response.employee);
+      setShowProfileModal(true);
+    } catch (error) {
+      console.error("Get Employee Profile Error:", error);
+      setError(error.message || "Failed to load employee profile.");
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const closeEmployeeProfile = () => {
+    if (loadingProfile) return;
+
+    setShowProfileModal(false);
+    setProfileEmployee(null);
+  };
   // ==========================================
   // OPEN EDIT MODAL
   // ==========================================
@@ -998,6 +1030,14 @@ function Employees() {
                                 Reset Password
                               </button>
 
+                              <button
+                                type="button"
+                                onClick={() => openEmployeeProfile(employee)}
+                                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium transition hover:bg-blue-500"
+                              >
+                                View Details
+                              </button>
+
                             </div>
 
                           </td>
@@ -1341,6 +1381,7 @@ function Employees() {
                       : "Save Changes"}
                   </button>
 
+
                 </div>
 
               </form>
@@ -1488,6 +1529,241 @@ function Employees() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+
+      {/* ======================================
+    EMPLOYEE PROFILE MODAL
+====================================== */}
+
+      {showProfileModal && profileEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  Employee Profile
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Employee details and attendance summary
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeEmployeeProfile}
+                className="text-2xl text-slate-500 transition hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Profile Content */}
+            <div className="space-y-6 p-6">
+
+              {/* Employee Basic Information */}
+              <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950 p-5 sm:flex-row sm:items-center">
+
+                {/* Avatar */}
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-blue-600 text-3xl font-bold text-white">
+                  {profileEmployee.name?.charAt(0)?.toUpperCase() || "E"}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-bold text-white">
+                      {profileEmployee.name}
+                    </h3>
+
+                    {profileEmployee.isActive ? (
+                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-2 break-all text-sm text-slate-400">
+                    {profileEmployee.email}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    📱 {profileEmployee.phone}
+                  </p>
+                </div>
+              </div>
+
+              {/* Account Information */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Account Information
+                </h3>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  {/* Account Status */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <p className="text-xs text-slate-500">
+                      Account Status
+                    </p>
+
+                    <p className="mt-2 font-semibold text-white">
+                      {profileEmployee.isActive ? (
+                        <span className="text-emerald-400">
+                          ● Active
+                        </span>
+                      ) : (
+                        <span className="text-red-400">
+                          ● Inactive
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Face Status */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <p className="text-xs text-slate-500">
+                      Face Recognition
+                    </p>
+
+                    <p className="mt-2 font-semibold">
+                      {profileEmployee.faceRegistered ? (
+                        <span className="text-emerald-400">
+                          ✓ Registered
+                        </span>
+                      ) : (
+                        <span className="text-amber-400">
+                          ⚠ Not Registered
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Attendance Summary */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Attendance Summary
+                </h3>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+                  {/* Present */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-center">
+                    <p className="text-2xl font-bold text-emerald-400">
+                      {profileEmployee.attendanceSummary?.present ?? 0}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Present
+                    </p>
+                  </div>
+
+                  {/* Late */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-center">
+                    <p className="text-2xl font-bold text-amber-400">
+                      {profileEmployee.attendanceSummary?.late ?? 0}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Late
+                    </p>
+                  </div>
+
+                  {/* Absent */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-center">
+                    <p className="text-2xl font-bold text-red-400">
+                      {profileEmployee.attendanceSummary?.absent ?? 0}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Absent
+                    </p>
+                  </div>
+
+                  {/* Total */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-400">
+                      {profileEmployee.attendanceSummary?.totalAttendanceRecords ?? 0}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Total Records
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Joining Information */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  Account Timeline
+                </h3>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <p className="text-xs text-slate-500">
+                      Joined On
+                    </p>
+
+                    <p className="mt-2 font-semibold text-white">
+                      {profileEmployee.createdAt
+                        ? new Date(
+                          profileEmployee.createdAt
+                        ).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "—"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <p className="text-xs text-slate-500">
+                      Last Updated
+                    </p>
+
+                    <p className="mt-2 font-semibold text-white">
+                      {profileEmployee.updatedAt
+                        ? new Date(
+                          profileEmployee.updatedAt
+                        ).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                        : "—"}
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end border-t border-slate-800 pt-5">
+                <button
+                  type="button"
+                  onClick={closeEmployeeProfile}
+                  className="rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                >
+                  Close
+                </button>
+              </div>
+
+            </div>
           </div>
         </div>
       )}

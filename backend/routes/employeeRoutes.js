@@ -7,6 +7,7 @@ const {
   toggleEmployeeStatus,
   registerEmployeeFace,
   resetEmployeePassword,
+  getEmployeeDetails,
 } = require("../controllers/employeeController");
 
 const { protect } = require("../middleware/authMiddleware");
@@ -31,18 +32,15 @@ router.post(
   "/:employeeId/face",
   protect,
   authorize("admin"),
-  registerEmployeeFace
+  registerEmployeeFace,
 );
+
+router.get("/:employeeId", protect, authorize("admin"), getEmployeeDetails);
 
 // ==========================================
 // UPDATE EMPLOYEE
 // ==========================================
-router.put(
-  "/:employeeId",
-  protect,
-  authorize("admin"),
-  updateEmployee
-);
+router.put("/:employeeId", protect, authorize("admin"), updateEmployee);
 
 // ==========================================
 // TOGGLE EMPLOYEE ACTIVE / INACTIVE
@@ -51,7 +49,7 @@ router.patch(
   "/:employeeId/status",
   protect,
   authorize("admin"),
-  toggleEmployeeStatus
+  toggleEmployeeStatus,
 );
 
 // ==========================================
@@ -61,7 +59,7 @@ router.patch(
   "/:employeeId/password",
   protect,
   authorize("admin"),
-  resetEmployeePassword
+  resetEmployeePassword,
 );
 
 module.exports = router;
