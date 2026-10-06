@@ -24,6 +24,7 @@ import AdminAttendance from "./pages/admin/AdminAttendance";
 import AttendanceRules from "./pages/admin/AttendanceRules";
 import AdminReports from "./pages/admin/AdminReports";
 import History from "./pages/employee/History";
+import Profile from "./pages/employee/Profile";
 
 import {
   AuthProvider,
@@ -176,7 +177,16 @@ function AppRoutes() {
           element={<Attendance />}
         />
 
-        <Route path="/employee/history" element={<History />} />
+        <Route
+          path="history"
+          element={<History />}
+        />
+
+        {/* /employee/profile */}
+        <Route
+          path="profile"
+          element={<Profile />}
+        />
 
       </Route>
 
