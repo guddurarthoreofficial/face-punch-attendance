@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as faceapi from "face-api.js";
+
 import { apiRequest } from "../services/api";
 import {
   getFaceDescriptor,
@@ -12,22 +14,32 @@ function AttendanceCamera() {
   const [attendance, setAttendance] = useState(null);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
 
+  // Camera / Face
   const [cameraStarted, setCameraStarted] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [faceDescriptor, setFaceDescriptor] = useState(null);
 
+  // Liveness
+  const [livenessPassed, setLivenessPassed] = useState(false);
+  const [livenessRunning, setLivenessRunning] = useState(false);
+  const [livenessStatus, setLivenessStatus] = useState(
+    "Liveness check required"
+  );
+
+  // Location
   const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("");
 
+  // UI
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
   const [processing, setProcessing] = useState(false);
 
-  // -----------------------------------
+  // ==========================================
   // GET TODAY'S ATTENDANCE
-  // -----------------------------------
+  // ==========================================
+
   const fetchTodayAttendance = useCallback(async () => {
     try {
       setLoadingAttendance(true);
@@ -53,6 +65,10 @@ function AttendanceCamera() {
     }
   }, []);
 
+  // ==========================================
+  // INITIAL LOAD + CLEANUP
+  // ==========================================
+
   useEffect(() => {
     fetchTodayAttendance();
 
@@ -65,13 +81,18 @@ function AttendanceCamera() {
     };
   }, [fetchTodayAttendance]);
 
-  // -----------------------------------
+  // ==========================================
   // START CAMERA
-  // -----------------------------------
+  // ==========================================
+
   const startCamera = async () => {
     try {
       setError("");
       setSuccess("");
+      setFaceDescriptor(null);
+      setFaceDetected(false);
+      setLivenessPassed(false);
+      setLivenessStatus("Liveness check required");
       setStatus("Starting camera...");
 
       await loadFaceModels();
@@ -94,9 +115,15 @@ function AttendanceCamera() {
       }
 
       setCameraStarted(true);
-      setStatus("Camera started. Position your face clearly.");
+
+      setStatus(
+        "Camera started. Position your face clearly."
+      );
     } catch (error) {
-      console.error("Camera Error:", error);
+      console.error(
+        "Camera Error:",
+        error
+      );
 
       setError(
         "Unable to access camera. Please allow camera permission."
@@ -106,73 +133,407 @@ function AttendanceCamera() {
     }
   };
 
-  // -----------------------------------
-  // DETECT FACE
-  // -----------------------------------
-  const detectFace = async () => {
+  // ==========================================
+  // LIVENESS HELPERS
+  // ==========================================
+
+  const calculateEyeAspectRatio = (eye) => {
+    if (!eye || eye.length < 6) {
+      return 1;
+    }
+
+    const vertical1 = Math.hypot(
+      eye[1].x - eye[5].x,
+      eye[1].y - eye[5].y
+    );
+
+    const vertical2 = Math.hypot(
+      eye[2].x - eye[4].x,
+      eye[2].y - eye[4].y
+    );
+
+    const horizontal = Math.hypot(
+      eye[0].x - eye[3].x,
+      eye[0].y - eye[3].y
+    );
+
+    if (horizontal === 0) {
+      return 1;
+    }
+
+    return (
+      (vertical1 + vertical2) /
+      (2 * horizontal)
+    );
+  };
+
+  const getEyeCenters = (landmarks) => {
+    const leftEye = landmarks.getLeftEye();
+    const rightEye = landmarks.getRightEye();
+
+    const getCenter = (points) => {
+      if (!points || points.length === 0) {
+        return {
+          x: 0,
+          y: 0,
+        };
+      }
+
+      const x =
+        points.reduce(
+          (sum, point) => sum + point.x,
+          0
+        ) / points.length;
+
+      const y =
+        points.reduce(
+          (sum, point) => sum + point.y,
+          0
+        ) / points.length;
+
+      return { x, y };
+    };
+
+    return {
+      left: getCenter(leftEye),
+      right: getCenter(rightEye),
+    };
+  };
+
+  // ==========================================
+  // LIVENESS CHECK
+  // ==========================================
+
+  const runLivenessCheck = async () => {
+    if (!videoRef.current) {
+      setError(
+        "Please start the camera first."
+      );
+      return;
+    }
+
+    if (!cameraStarted) {
+      setError(
+        "Please start the camera first."
+      );
+      return;
+    }
+
+    if (livenessRunning) {
+      return;
+    }
+
     try {
       setError("");
       setSuccess("");
-      setStatus("Detecting face...");
 
-      if (!videoRef.current) {
-        setError("Camera is not available.");
-        return;
-      }
+      // Remove old descriptor before a new liveness attempt
+      setFaceDescriptor(null);
+      setFaceDetected(false);
 
-      const descriptor = await getFaceDescriptor(
-        videoRef.current
+      setLivenessRunning(true);
+      setLivenessPassed(false);
+
+      setLivenessStatus(
+        "Blink once and move your head slightly left or right 👁️↔️"
       );
 
-      if (!descriptor) {
-        setFaceDetected(false);
-        setFaceDescriptor(null);
+      setStatus(
+        "Checking that you are a real person..."
+      );
 
-        setError(
-          "No clear face detected. Please look directly at the camera."
+      let blinkDetected = false;
+      let blinkClosed = false;
+      let headMoved = false;
+
+      let baselineNoseRatio = null;
+
+      const startTime = Date.now();
+      const timeout = 8000;
+
+      while (
+        Date.now() - startTime <
+        timeout
+      ) {
+        const detection =
+          await faceapi
+            .detectSingleFace(
+              videoRef.current,
+              new faceapi.TinyFaceDetectorOptions(
+                {
+                  inputSize: 320,
+                  scoreThreshold: 0.5,
+                }
+              )
+            )
+            .withFaceLandmarks();
+
+        if (!detection) {
+          setFaceDetected(false);
+
+          setLivenessStatus(
+            "Face not detected ❌"
+          );
+
+          await new Promise(
+            (resolve) =>
+              setTimeout(resolve, 150)
+          );
+
+          continue;
+        }
+
+        setFaceDetected(true);
+
+        const landmarks =
+          detection.landmarks;
+
+        // ======================================
+        // BLINK DETECTION
+        // ======================================
+
+        const leftEye =
+          landmarks.getLeftEye();
+
+        const rightEye =
+          landmarks.getRightEye();
+
+        const leftEAR =
+          calculateEyeAspectRatio(
+            leftEye
+          );
+
+        const rightEAR =
+          calculateEyeAspectRatio(
+            rightEye
+          );
+
+        const averageEAR =
+          (leftEAR + rightEAR) / 2;
+
+        // Eyes closed
+        if (averageEAR < 0.22) {
+          blinkClosed = true;
+        }
+
+        // Eyes opened after closing
+        if (
+          blinkClosed &&
+          averageEAR > 0.25
+        ) {
+          blinkDetected = true;
+          blinkClosed = false;
+
+          setLivenessStatus(
+            "Blink detected ✅ Now move your head slightly ↔️"
+          );
+        }
+
+        // ======================================
+        // HEAD MOVEMENT DETECTION
+        // ======================================
+
+        const eyes =
+          getEyeCenters(landmarks);
+
+        const eyeCenterX =
+          (eyes.left.x +
+            eyes.right.x) /
+          2;
+
+        const eyeDistance =
+          Math.abs(
+            eyes.right.x -
+              eyes.left.x
+          );
+
+        const nose =
+          landmarks.getNose();
+
+        if (
+          nose &&
+          nose.length > 0 &&
+          eyeDistance > 0
+        ) {
+          const noseTip =
+            nose[3] ||
+            nose[
+              Math.floor(
+                nose.length / 2
+              )
+            ];
+
+          const noseRatio =
+            (noseTip.x -
+              eyeCenterX) /
+            eyeDistance;
+
+          if (
+            baselineNoseRatio ===
+            null
+          ) {
+            baselineNoseRatio =
+              noseRatio;
+          }
+
+          const movement =
+            Math.abs(
+              noseRatio -
+                baselineNoseRatio
+            );
+
+          if (movement > 0.12) {
+            headMoved = true;
+          }
+        }
+
+        // ======================================
+        // STATUS
+        // ======================================
+
+        if (
+          blinkDetected &&
+          !headMoved
+        ) {
+          setLivenessStatus(
+            "Blink passed ✅ Move your head a little more ↔️"
+          );
+        }
+
+        if (
+          !blinkDetected &&
+          headMoved
+        ) {
+          setLivenessStatus(
+            "Head movement passed ✅ Now blink once 👁️"
+          );
+        }
+
+        // ======================================
+        // BOTH PASSED
+        // ======================================
+
+        if (
+          blinkDetected &&
+          headMoved
+        ) {
+          setLivenessStatus(
+            "Liveness actions completed ✅ Capturing face..."
+          );
+
+          // Capture fresh face descriptor
+          // AFTER liveness verification
+          const liveDescriptor =
+            await getFaceDescriptor(
+              videoRef.current
+            );
+
+          if (
+            !liveDescriptor ||
+            liveDescriptor.length !== 128
+          ) {
+            setLivenessPassed(false);
+            setFaceDescriptor(null);
+
+            setLivenessStatus(
+              "Liveness passed, but face capture failed ❌"
+            );
+
+            setStatus(
+              "Please keep your face clearly visible and try again."
+            );
+
+            setLivenessRunning(false);
+
+            return;
+          }
+
+          // Convert Float32Array to normal Array
+          const descriptorArray =
+            Array.from(
+              liveDescriptor
+            );
+
+          setFaceDescriptor(
+            descriptorArray
+          );
+
+          setFaceDetected(true);
+
+          setLivenessPassed(true);
+
+          setLivenessStatus(
+            "Liveness verified successfully ✅"
+          );
+
+          setStatus(
+            "Real person verified and face captured ✅ You can now get location and check in."
+          );
+
+          setLivenessRunning(false);
+
+          return;
+        }
+
+        await new Promise(
+          (resolve) =>
+            setTimeout(resolve, 150)
         );
-
-        setStatus("");
-        return;
       }
 
-      if (descriptor.length !== 128) {
-        setFaceDetected(false);
-        setFaceDescriptor(null);
+      // ======================================
+      // TIMEOUT
+      // ======================================
 
-        setError("Invalid face data detected.");
-        setStatus("");
-        return;
-      }
+      setLivenessPassed(false);
+      setFaceDescriptor(null);
 
-      setFaceDetected(true);
-      setFaceDescriptor(descriptor);
-
-      setStatus("Face detected successfully.");
-    } catch (error) {
-      console.error("Face Detection Error:", error);
-
-      setError(
-        "Unable to detect face. Please try again."
+      setLivenessStatus(
+        "Liveness check failed ❌ Please try again."
       );
 
-      setStatus("");
+      setStatus(
+        "Please blink and move your head naturally, then try again."
+      );
+    } catch (error) {
+      console.error(
+        "Liveness Check Error:",
+        error
+      );
+
+      setLivenessPassed(false);
+      setFaceDescriptor(null);
+
+      setLivenessStatus(
+        "Liveness check failed ❌"
+      );
+
+      setStatus(
+        "Liveness verification failed ❌"
+      );
+    } finally {
+      setLivenessRunning(false);
     }
   };
 
-  // -----------------------------------
+  // ==========================================
   // GET GPS LOCATION
-  // -----------------------------------
+  // ==========================================
+
   const getLocation = () => {
     setError("");
     setSuccess("");
-    setLocationStatus("Getting your location...");
+    setLocationStatus(
+      "Getting your location..."
+    );
 
     if (!navigator.geolocation) {
       setLocationStatus("");
+
       setError(
         "Geolocation is not supported by this browser."
       );
+
       return;
     }
 
@@ -197,7 +558,10 @@ function AttendanceCamera() {
         );
       },
       (error) => {
-        console.error("Location Error:", error);
+        console.error(
+          "Location Error:",
+          error
+        );
 
         setLocation(null);
         setLocationStatus("");
@@ -230,17 +594,31 @@ function AttendanceCamera() {
     );
   };
 
-  // -----------------------------------
+  // ==========================================
   // CHECK IN
-  // -----------------------------------
+  // ==========================================
+
   const handleCheckIn = async () => {
-    if (!faceDescriptor) {
+    // Liveness
+    if (!livenessPassed) {
       setError(
-        "Please detect your face before checking in."
+        "Please complete liveness verification first."
       );
       return;
     }
 
+    // Face
+    if (
+      !faceDescriptor ||
+      faceDescriptor.length !== 128
+    ) {
+      setError(
+        "Face verification data is not available. Please complete liveness again."
+      );
+      return;
+    }
+
+    // GPS
     if (!location) {
       setError(
         "Please get your location before checking in."
@@ -250,36 +628,60 @@ function AttendanceCamera() {
 
     try {
       setProcessing(true);
+
       setError("");
       setSuccess("");
-      setStatus("Verifying face and location...");
 
-      const data = await apiRequest(
-        "/attendance/check-in",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-            faceDescriptor,
-          }),
-        }
+      setStatus(
+        "Verifying face and location..."
       );
 
-      setAttendance(data.attendance || null);
+      const data =
+        await apiRequest(
+          "/attendance/check-in",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              latitude:
+                location.latitude,
+              longitude:
+                location.longitude,
+              accuracy:
+                location.accuracy,
+              faceDescriptor,
+            }),
+          }
+        );
+
+      setAttendance(
+        data.attendance || null
+      );
 
       setSuccess(
         data.message ||
           "Check-in successful."
       );
 
-      setStatus("Attendance marked successfully.");
+      setStatus(
+        "Attendance marked successfully."
+      );
 
+      // Clear security state
       setFaceDescriptor(null);
       setFaceDetected(false);
+      setLivenessPassed(false);
+
+      setLivenessStatus(
+        "Liveness check completed for today"
+      );
+
+      // Refresh today's attendance
+      await fetchTodayAttendance();
     } catch (error) {
-      console.error("Check-In Error:", error);
+      console.error(
+        "Check-In Error:",
+        error
+      );
 
       setError(
         error.message ||
@@ -292,9 +694,10 @@ function AttendanceCamera() {
     }
   };
 
-  // -----------------------------------
+  // ==========================================
   // CHECK OUT
-  // -----------------------------------
+  // ==========================================
+
   const handleCheckOut = async () => {
     if (!location) {
       setError(
@@ -305,32 +708,49 @@ function AttendanceCamera() {
 
     try {
       setProcessing(true);
+
       setError("");
       setSuccess("");
-      setStatus("Verifying your location...");
 
-      const data = await apiRequest(
-        "/attendance/check-out",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-          }),
-        }
+      setStatus(
+        "Verifying your location..."
       );
 
-      setAttendance(data.attendance || null);
+      const data =
+        await apiRequest(
+          "/attendance/check-out",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              latitude:
+                location.latitude,
+              longitude:
+                location.longitude,
+              accuracy:
+                location.accuracy,
+            }),
+          }
+        );
+
+      setAttendance(
+        data.attendance || null
+      );
 
       setSuccess(
         data.message ||
           "Check-out successful."
       );
 
-      setStatus("Check-out completed successfully.");
+      setStatus(
+        "Check-out completed successfully."
+      );
+
+      await fetchTodayAttendance();
     } catch (error) {
-      console.error("Check-Out Error:", error);
+      console.error(
+        "Check-Out Error:",
+        error
+      );
 
       setError(
         error.message ||
@@ -343,9 +763,10 @@ function AttendanceCamera() {
     }
   };
 
-  // -----------------------------------
+  // ==========================================
   // WORKING DURATION
-  // -----------------------------------
+  // ==========================================
+
   const getWorkingDuration = () => {
     if (!attendance?.checkIn) {
       return "—";
@@ -360,19 +781,23 @@ function AttendanceCamera() {
       : new Date();
 
     const difference =
-      end.getTime() - start.getTime();
+      end.getTime() -
+      start.getTime();
 
     if (difference < 0) {
       return "—";
     }
 
-    const totalMinutes = Math.floor(
-      difference / (1000 * 60)
-    );
+    const totalMinutes =
+      Math.floor(
+        difference /
+          (1000 * 60)
+      );
 
-    const hours = Math.floor(
-      totalMinutes / 60
-    );
+    const hours =
+      Math.floor(
+        totalMinutes / 60
+      );
 
     const minutes =
       totalMinutes % 60;
@@ -382,10 +807,18 @@ function AttendanceCamera() {
       .padStart(2, "0")}m`;
   };
 
-  const formatTime = (date) => {
-    if (!date) return "—";
+  // ==========================================
+  // FORMAT TIME
+  // ==========================================
 
-    return new Date(date).toLocaleTimeString(
+  const formatTime = (date) => {
+    if (!date) {
+      return "—";
+    }
+
+    return new Date(
+      date
+    ).toLocaleTimeString(
       "en-IN",
       {
         hour: "2-digit",
@@ -395,9 +828,10 @@ function AttendanceCamera() {
     );
   };
 
-  // -----------------------------------
+  // ==========================================
   // ATTENDANCE STATE
-  // -----------------------------------
+  // ==========================================
+
   const isCheckedIn =
     !!attendance?.checkIn &&
     !attendance?.checkOut;
@@ -406,26 +840,38 @@ function AttendanceCamera() {
     !!attendance?.checkIn &&
     !!attendance?.checkOut;
 
+  // ==========================================
+  // LOADING
+  // ==========================================
+
   if (loadingAttendance) {
     return (
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-6 w-48 rounded bg-slate-800" />
+
           <div className="h-24 rounded-xl bg-slate-800" />
+
           <div className="h-12 rounded-xl bg-slate-800" />
         </div>
       </div>
     );
   }
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <div className="space-y-6">
-      {/* -------------------------------- */}
-      {/* TODAY STATUS */}
-      {/* -------------------------------- */}
+
+      {/* ======================================
+          TODAY STATUS
+      ====================================== */}
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
           <div>
             <p className="text-sm text-slate-400">
               Today's Attendance
@@ -435,8 +881,8 @@ function AttendanceCamera() {
               {isCompleted
                 ? "Day Completed"
                 : isCheckedIn
-                ? "Currently Checked In"
-                : "Not Checked In"}
+                  ? "Currently Checked In"
+                  : "Not Checked In"}
             </h2>
           </div>
 
@@ -445,20 +891,21 @@ function AttendanceCamera() {
               isCompleted
                 ? "bg-blue-500/10 text-blue-400"
                 : isCheckedIn
-                ? "bg-green-500/10 text-green-400"
-                : "bg-amber-500/10 text-amber-400"
+                  ? "bg-green-500/10 text-green-400"
+                  : "bg-amber-500/10 text-amber-400"
             }`}
           >
             {isCompleted
               ? "COMPLETED"
               : isCheckedIn
-              ? "CHECKED IN"
-              : "PENDING"}
+                ? "CHECKED IN"
+                : "PENDING"}
           </div>
         </div>
 
         {attendance && (
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+
             <div className="rounded-xl bg-slate-950/70 p-4">
               <p className="text-xs text-slate-500">
                 Check-In
@@ -492,17 +939,19 @@ function AttendanceCamera() {
                 {getWorkingDuration()}
               </p>
             </div>
+
           </div>
         )}
       </div>
 
-      {/* -------------------------------- */}
-      {/* COMPLETED */}
-      {/* -------------------------------- */}
+      {/* ======================================
+          COMPLETED
+      ====================================== */}
 
       {isCompleted && (
         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6">
           <div className="flex items-start gap-4">
+
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-xl text-blue-400">
               ✓
             </div>
@@ -517,17 +966,19 @@ function AttendanceCamera() {
                 today have been recorded successfully.
               </p>
             </div>
+
           </div>
         </div>
       )}
 
-      {/* -------------------------------- */}
-      {/* CHECK-IN CAMERA */}
-      {/* -------------------------------- */}
+      {/* ======================================
+          CHECK-IN
+      ====================================== */}
 
       {!isCheckedIn &&
         !isCompleted && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 sm:p-6">
+
             <div className="mb-5">
               <h3 className="text-lg font-bold text-white">
                 Check-In
@@ -551,36 +1002,59 @@ function AttendanceCamera() {
               />
             </div>
 
-            {/* CAMERA BUTTON */}
+            {/* START CAMERA */}
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={startCamera}
                 disabled={cameraStarted}
-                className="rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {cameraStarted
                   ? "Camera Started"
                   : "Start Camera"}
               </button>
+            </div>
 
+            {/* LIVENESS */}
+
+            <div className="mt-5">
               <button
                 type="button"
-                onClick={detectFace}
-                disabled={!cameraStarted}
-                className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={runLivenessCheck}
+                disabled={
+                  !cameraStarted ||
+                  livenessRunning
+                }
+                className={`w-full rounded-xl px-6 py-3 font-semibold text-white ${
+                  !cameraStarted ||
+                  livenessRunning
+                    ? "cursor-not-allowed bg-slate-600"
+                    : livenessPassed
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-yellow-600 hover:bg-yellow-700"
+                }`}
               >
-                {faceDetected
-                  ? "Face Detected ✓"
-                  : "Detect Face"}
+                {livenessRunning
+                  ? "Checking Liveness..."
+                  : livenessPassed
+                    ? "Liveness Passed ✅"
+                    : "Verify Liveness"}
               </button>
+
+              <div className="mt-4 text-center">
+                <p className="text-sm text-slate-300">
+                  {livenessStatus}
+                </p>
+              </div>
             </div>
 
             {/* GPS */}
 
             <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
                 <div>
                   <p className="text-sm font-semibold text-white">
                     Location Verification
@@ -599,6 +1073,7 @@ function AttendanceCamera() {
                 >
                   Get Location
                 </button>
+
               </div>
             </div>
 
@@ -610,11 +1085,15 @@ function AttendanceCamera() {
               </div>
             )}
 
+            {/* ERROR */}
+
             {error && (
               <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                 {error}
               </div>
             )}
+
+            {/* SUCCESS */}
 
             {success && (
               <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-300">
@@ -622,12 +1101,20 @@ function AttendanceCamera() {
               </div>
             )}
 
-            {/* CHECK IN */}
+            {/* CHECK-IN */}
+
+            {!livenessPassed && (
+              <p className="mt-4 text-center text-xs text-amber-300">
+                Complete liveness verification before
+                marking check-in.
+              </p>
+            )}
 
             <button
               type="button"
               onClick={handleCheckIn}
               disabled={
+                !livenessPassed ||
                 !faceDescriptor ||
                 !location ||
                 processing
@@ -638,15 +1125,17 @@ function AttendanceCamera() {
                 ? "Verifying..."
                 : "Mark Check-In"}
             </button>
+
           </div>
         )}
 
-      {/* -------------------------------- */}
-      {/* CHECK-OUT */}
-      {/* -------------------------------- */}
+      {/* ======================================
+          CHECK-OUT
+      ====================================== */}
 
       {isCheckedIn && (
         <div className="rounded-2xl border border-orange-500/20 bg-slate-900 p-5 sm:p-6">
+
           <div className="mb-5">
             <h3 className="text-lg font-bold text-white">
               Check-Out
@@ -660,7 +1149,9 @@ function AttendanceCamera() {
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+
             <div className="flex items-center gap-4">
+
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500/10 text-xl">
                 📍
               </div>
@@ -675,6 +1166,7 @@ function AttendanceCamera() {
                   location to check out.
                 </p>
               </div>
+
             </div>
 
             <button
@@ -692,6 +1184,7 @@ function AttendanceCamera() {
                 {locationStatus}
               </p>
             )}
+
           </div>
 
           {status && (
@@ -715,13 +1208,17 @@ function AttendanceCamera() {
           <button
             type="button"
             onClick={handleCheckOut}
-            disabled={!location || processing}
+            disabled={
+              !location ||
+              processing
+            }
             className="mt-5 w-full rounded-xl bg-orange-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {processing
               ? "Checking Out..."
               : "Check Out"}
           </button>
+
         </div>
       )}
     </div>
