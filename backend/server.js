@@ -10,8 +10,6 @@ const locationRoutes = require("./routes/locationRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 
-
-
 dotenv.config();
 const app = express();
 
@@ -22,13 +20,19 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
+// Request Logger
+app.use((req, res, next) => {
+  console.log(
+    `[${new Date().toLocaleString("en-IN")}] ${req.method} ${req.originalUrl}`,
+  );
 
-
+  next();
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/school", schoolRoutes);
 app.use("/api/location", locationRoutes);
-app.use("/api/attendance",attendanceRoutes);
+app.use("/api/attendance", attendanceRoutes);
 app.use("/api/employees", employeeRoutes);
 
 app.get("/", (req, res) => {
