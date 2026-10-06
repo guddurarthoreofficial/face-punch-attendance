@@ -246,7 +246,34 @@ function Profile() {
             </div>
           </div>
 
-          
+          <button
+            onClick={async () => {
+              try {
+                const { apiRequest } = await import(
+                  "../../services/api"
+                );
+
+                const result = await apiRequest(
+                  "/push/test",
+                  {
+                    method: "POST",
+                  }
+                );
+
+                alert(result.message);
+              } catch (error) {
+                alert(
+                  error.message ||
+                  "Test notification failed"
+                );
+              }
+            }}
+            className="mt-3 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm"
+          >
+            🧪 Send Test Notification
+          </button>
+
+
           {/* Security */}
           <div className="p-6 sm:p-8 border-t border-slate-800">
             <h3 className="text-lg font-semibold">

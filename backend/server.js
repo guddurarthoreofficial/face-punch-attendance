@@ -9,38 +9,110 @@ const schoolRoutes = require("./routes/schoolRoutes");
 const locationRoutes = require("./routes/locationRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
-
-
-
 const pushRoutes = require("./routes/pushRoutes");
 
-
 dotenv.config();
+
 const app = express();
 
-app.use("/api/push", pushRoutes);
+// ==========================================
+// CORS
+// ==========================================
 
-// Database
-connectDB();
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://attendance-beta-five.vercel.app"
 
-// Middleware
-app.use(cors());
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without an Origin
+      // (Postman, server-to-server, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow local development
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow deployed frontend
+      if (
+        origin.includes(".vercel.app")
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(
+        new Error("Not allowed by CORS")
+      );
+    },
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+
+    credentials: true,
+  })
+);
+
+// ==========================================
+// BODY PARSER
+// ==========================================
+
 app.use(express.json());
 
-// Request Logger
+// ==========================================
+// DATABASE
+// ==========================================
+
+connectDB();
+
+// ==========================================
+// REQUEST LOGGER
+// ==========================================
+
 app.use((req, res, next) => {
   console.log(
-    `[${new Date().toLocaleString("en-IN")}] ${req.method} ${req.originalUrl}`,
+    `[${new Date().toLocaleString("en-IN")}] ${req.method} ${req.originalUrl}`
   );
 
   next();
 });
 
+// ==========================================
+// ROUTES
+// ==========================================
+
 app.use("/api/auth", authRoutes);
+
 app.use("/api/school", schoolRoutes);
+
 app.use("/api/location", locationRoutes);
+
 app.use("/api/attendance", attendanceRoutes);
+
 app.use("/api/employees", employeeRoutes);
+
+app.use("/api/push", pushRoutes);
+
+// ==========================================
+// ROOT
+// ==========================================
 
 app.get("/", (req, res) => {
   res.json({
@@ -49,8 +121,14 @@ app.get("/", (req, res) => {
   });
 });
 
+// ==========================================
+// SERVER
+// ==========================================
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(
+    `Server running on http://localhost:${PORT}`
+  );
 });
