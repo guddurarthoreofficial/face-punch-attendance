@@ -23,6 +23,7 @@ import EmployeeLayout from "./layouts/EmployeeLayout";
 import AdminAttendance from "./pages/admin/AdminAttendance";
 import AttendanceRules from "./pages/admin/AttendanceRules";
 import AdminReports from "./pages/admin/AdminReports";
+import History from "./pages/employee/History";
 
 import {
   AuthProvider,
@@ -174,6 +175,8 @@ function AppRoutes() {
           path="attendance"
           element={<Attendance />}
         />
+
+        <Route path="/employee/history" element={<History />} />
 
       </Route>
 
