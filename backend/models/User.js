@@ -41,6 +41,11 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    faceSamples: {
+      type: [[Number]],
+      default: [],
+    },
+
     isActive: {
       type: Boolean,
       default: true,

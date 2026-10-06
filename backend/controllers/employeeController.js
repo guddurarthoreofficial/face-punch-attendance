@@ -101,14 +101,72 @@ const getEmployees = async (req, res) => {
 const registerEmployeeFace = async (req, res) => {
   try {
     const { employeeId } = req.params;
-    const { faceData } = req.body;
+    const { faceData, faceSamples } = req.body;
 
-    if (!Array.isArray(faceData) || faceData.length !== 128) {
+    // ==========================================
+    // BUILD FACE SAMPLES
+    // ==========================================
+
+    let samples = [];
+
+    // New system:
+    // faceSamples = [
+    //   [128 values],
+    //   [128 values],
+    //   ...
+    // ]
+    if (Array.isArray(faceSamples) && faceSamples.length > 0) {
+      samples = faceSamples;
+    }
+
+    // Old system compatibility:
+    // faceData = [128 values]
+    else if (Array.isArray(faceData) && faceData.length === 128) {
+      samples = [faceData];
+    }
+
+    // ==========================================
+    // VALIDATE SAMPLES
+    // ==========================================
+
+    if (samples.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Valid 128-value face data is required",
+        message: "At least one valid face sample is required",
       });
     }
+
+    const invalidSample = samples.some(
+      (sample) =>
+        !Array.isArray(sample) ||
+        sample.length !== 128 ||
+        sample.some(
+          (value) => typeof value !== "number" || !Number.isFinite(value)
+        )
+    );
+
+    if (invalidSample) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Every face sample must contain exactly 128 valid numeric values",
+      });
+    }
+
+    // ==========================================
+    // LIMIT SAMPLES
+    // ==========================================
+
+    if (samples.length > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum 5 face samples are allowed",
+      });
+    }
+
+    // ==========================================
+    // FIND EMPLOYEE
+    // ==========================================
 
     const employee = await User.findOne({
       _id: employeeId,
@@ -122,11 +180,24 @@ const registerEmployeeFace = async (req, res) => {
       });
     }
 
-    employee.faceData = faceData;
+    // ==========================================
+    // SAVE FACE DATA
+    // ==========================================
+
+    // Keep first sample in old faceData field
+    // so existing attendance system continues working.
+    employee.faceData = samples[0];
+
+    // Save all samples in new field
+    employee.faceSamples = samples;
 
     await employee.save();
 
-    res.status(200).json({
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    return res.status(200).json({
       success: true,
       message: "Employee face registered successfully",
       employee: {
@@ -134,12 +205,13 @@ const registerEmployeeFace = async (req, res) => {
         name: employee.name,
         email: employee.email,
         faceRegistered: true,
+        faceSampleCount: samples.length,
       },
     });
   } catch (error) {
     console.error("Register Employee Face Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
