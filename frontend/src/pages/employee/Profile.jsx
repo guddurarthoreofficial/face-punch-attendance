@@ -1,9 +1,24 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useState } from "react";
+
+
+import {
+  subscribeToPush,
+  registerPushServiceWorker,
+} from "../../services/pushNotification";
+
 
 function Profile() {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+
+  const [notificationStatus, setNotificationStatus] =
+    useState("idle");
+
+  const [notificationError, setNotificationError] =
+    useState("");
 
   if (!user) {
     return (
@@ -15,11 +30,35 @@ function Profile() {
 
   const joinedDate = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      })
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    })
     : "Not available";
+
+
+
+  const handleEnableNotifications = async () => {
+    try {
+      setNotificationStatus("loading");
+      setNotificationError("");
+
+      await subscribeToPush();
+
+      setNotificationStatus("enabled");
+    } catch (error) {
+      console.error(
+        "Enable Notification Error:",
+        error
+      );
+
+      setNotificationStatus("error");
+      setNotificationError(
+        error.message ||
+        "Unable to enable notifications"
+      );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -52,7 +91,7 @@ function Profile() {
           {/* Profile Header */}
           <div className="p-6 sm:p-8 border-b border-slate-800">
             <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-              
+
               {/* Avatar */}
               <div className="w-20 h-20 rounded-full bg-indigo-600 flex items-center justify-center text-3xl font-bold shadow-lg">
                 {user.name?.charAt(0)?.toUpperCase() || "U"}
@@ -89,7 +128,7 @@ function Profile() {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
+
               {/* Name */}
               <div className="bg-slate-800/60 rounded-xl p-4">
                 <p className="text-xs text-slate-400 mb-1">
@@ -166,6 +205,48 @@ function Profile() {
             </div>
           </div>
 
+
+          {/* Notifications */}
+          <div className="p-6 sm:p-8 border-t border-slate-800">
+            <h3 className="text-lg font-semibold">
+              Notifications
+            </h3>
+
+            <p className="text-sm text-slate-400 mt-1">
+              Receive important school notifications directly
+              in your browser.
+            </p>
+
+            <div className="mt-4">
+              {notificationStatus === "enabled" ? (
+                <div className="flex items-center gap-2">
+                  <span className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
+                    🔔 Notifications Enabled
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleEnableNotifications}
+                  disabled={
+                    notificationStatus === "loading"
+                  }
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition"
+                >
+                  {notificationStatus === "loading"
+                    ? "Enabling..."
+                    : "🔔 Enable Notifications"}
+                </button>
+              )}
+
+              {notificationError && (
+                <p className="text-sm text-red-400 mt-3">
+                  {notificationError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          
           {/* Security */}
           <div className="p-6 sm:p-8 border-t border-slate-800">
             <h3 className="text-lg font-semibold">
