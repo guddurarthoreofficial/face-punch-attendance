@@ -48,6 +48,8 @@ const registerUser = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -116,6 +118,8 @@ const loginUser = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -127,8 +131,6 @@ const loginUser = async (req, res) => {
     });
   }
 };
-
-
 
 // ===============================
 // GET CURRENT USER
@@ -144,6 +146,7 @@ const getMe = async (req, res) => {
         phone: req.user.phone,
         role: req.user.role,
         isActive: req.user.isActive,
+        createdAt: req.user.createdAt,
       },
     });
   } catch (error) {
