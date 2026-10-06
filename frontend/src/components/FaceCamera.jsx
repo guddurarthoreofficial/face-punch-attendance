@@ -6,8 +6,6 @@ import {
   getFaceDescriptor,
 } from "../services/faceService";
 
-// const API_URL = "http://localhost:5000/api";
-
 function FaceCamera({ employeeId: employeeIdProp }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -15,11 +13,20 @@ function FaceCamera({ employeeId: employeeIdProp }) {
   const [status, setStatus] = useState("Loading face models...");
   const [cameraStarted, setCameraStarted] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
+
+  // Temporary descriptor captured from camera
   const [faceDescriptor, setFaceDescriptor] = useState(null);
+
+  // Multiple registered face samples
+  const [faceSamples, setFaceSamples] = useState([]);
+
   const [employeeId, setEmployeeId] = useState(
     employeeIdProp || ""
   );
+
   const [registering, setRegistering] = useState(false);
+
+  const MAX_SAMPLES = 5;
 
   // ==========================================
   // LOAD FACE MODELS
@@ -30,7 +37,7 @@ function FaceCamera({ employeeId: employeeIdProp }) {
         await loadFaceModels();
         setStatus("Face models ready ✅");
       } catch (error) {
-        console.error(error);
+        console.error("Face Model Error:", error);
         setStatus("Failed to load face models ❌");
       }
     };
@@ -45,6 +52,15 @@ function FaceCamera({ employeeId: employeeIdProp }) {
       }
     };
   }, []);
+
+  // ==========================================
+  // UPDATE EMPLOYEE ID
+  // ==========================================
+  useEffect(() => {
+    if (employeeIdProp) {
+      setEmployeeId(employeeIdProp);
+    }
+  }, [employeeIdProp]);
 
   // ==========================================
   // START CAMERA
@@ -122,13 +138,20 @@ function FaceCamera({ employeeId: employeeIdProp }) {
   };
 
   // ==========================================
-  // CAPTURE FACE
+  // CAPTURE FACE SAMPLE
   // ==========================================
   const captureFace = async () => {
     if (!videoRef.current) return;
 
+    if (faceSamples.length >= MAX_SAMPLES) {
+      setStatus("Maximum 5 face samples already captured ✅");
+      return;
+    }
+
     try {
-      setStatus("Capturing face...");
+      setStatus(
+        `Capturing face sample ${faceSamples.length + 1}/${MAX_SAMPLES}...`
+      );
 
       const descriptor = await getFaceDescriptor(
         videoRef.current
@@ -137,32 +160,55 @@ function FaceCamera({ employeeId: employeeIdProp }) {
       if (!descriptor) {
         setFaceDetected(false);
         setFaceDescriptor(null);
+
         setStatus("Please show your face clearly ❌");
         return;
       }
 
       if (descriptor.length !== 128) {
         setFaceDescriptor(null);
+
         setStatus("Invalid face descriptor ❌");
         return;
       }
 
+      const sample = Array.from(descriptor);
+
       setFaceDetected(true);
-      setFaceDescriptor(descriptor);
+
+      // Store latest captured descriptor temporarily
+      setFaceDescriptor(sample);
+
+      // Add new sample
+      setFaceSamples((previousSamples) => [
+        ...previousSamples,
+        sample,
+      ]);
 
       console.log(
-        "Captured Face Descriptor:",
-        descriptor
+        `Face Sample ${faceSamples.length + 1}:`,
+        sample
       );
 
       console.log(
         "Descriptor Length:",
-        descriptor.length
+        sample.length
       );
 
-      setStatus(
-        "Face captured successfully ✅ Ready to register"
-      );
+      const nextCount = faceSamples.length + 1;
+
+      if (nextCount >= MAX_SAMPLES) {
+        setStatus(
+          "5 face samples captured successfully ✅ You can now register."
+        );
+      } else {
+        setStatus(
+          `Face sample ${nextCount}/${MAX_SAMPLES} captured ✅ Change your face angle slightly and capture again.`
+        );
+      }
+
+      // Clear temporary descriptor after adding sample
+      setFaceDescriptor(null);
     } catch (error) {
       console.error("Capture Face Error:", error);
       setStatus("Face capture failed ❌");
@@ -170,64 +216,118 @@ function FaceCamera({ employeeId: employeeIdProp }) {
   };
 
   // ==========================================
-  // REGISTER FACE IN BACKEND
+  // REMOVE LAST SAMPLE
+  // ==========================================
+  const removeLastSample = () => {
+    if (faceSamples.length === 0) {
+      return;
+    }
+
+    setFaceSamples((previousSamples) =>
+      previousSamples.slice(0, -1)
+    );
+
+    setStatus(
+      "Last face sample removed. You can capture again."
+    );
+  };
+
+  // ==========================================
+  // RESET ALL SAMPLES
+  // ==========================================
+  const resetSamples = () => {
+    setFaceSamples([]);
+    setFaceDescriptor(null);
+    setFaceDetected(false);
+
+    setStatus(
+      "All face samples cleared. Capture again."
+    );
+  };
+
+  // ==========================================
+  // REGISTER FACE SAMPLES IN BACKEND
   // ==========================================
   const registerFace = async () => {
-  if (!employeeId.trim()) {
-    setStatus("Employee ID not found ❌");
-    return;
-  }
-
-  if (!faceDescriptor) {
-    setStatus("Please capture face first ❌");
-    return;
-  }
-
-  if (faceDescriptor.length !== 128) {
-    setStatus("Invalid face descriptor ❌");
-    return;
-  }
-
-  try {
-    setRegistering(true);
-    setStatus("Registering face...");
-
-    const data = await apiRequest(
-      `/employees/${employeeId.trim()}/face`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          faceData: faceDescriptor,
-        }),
-      }
-    );
-
-    console.log("Register Face Response:", data);
-
-    setStatus(
-      "Employee face registered successfully ✅"
-    );
-
-    setFaceDescriptor(null);
-
-  } catch (error) {
-    console.error("Register Face Error:", error);
-
-    setStatus(
-      error.message || "Face registration failed ❌"
-    );
-
-  } finally {
-    setRegistering(false);
-  }
-};
-
-
-  useEffect(() => {
-    if (employeeIdProp) {
-      setEmployeeId(employeeIdProp);
+    if (!employeeId.trim()) {
+      setStatus("Employee ID not found ❌");
+      return;
     }
-  }, [employeeIdProp]);
+
+    if (faceSamples.length === 0) {
+      setStatus(
+        "Please capture at least one face sample ❌"
+      );
+      return;
+    }
+
+    if (faceSamples.length > MAX_SAMPLES) {
+      setStatus(
+        "Maximum 5 face samples are allowed ❌"
+      );
+      return;
+    }
+
+    // Final validation before sending
+    const invalidSample = faceSamples.some(
+      (sample) =>
+        !Array.isArray(sample) ||
+        sample.length !== 128 ||
+        sample.some(
+          (value) =>
+            typeof value !== "number" ||
+            !Number.isFinite(value)
+        )
+    );
+
+    if (invalidSample) {
+      setStatus(
+        "One or more face samples are invalid ❌"
+      );
+      return;
+    }
+
+    try {
+      setRegistering(true);
+      setStatus(
+        `Registering ${faceSamples.length} face samples...`
+      );
+
+      const data = await apiRequest(
+        `/employees/${employeeId.trim()}/face`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            faceSamples,
+          }),
+        }
+      );
+
+      console.log(
+        "Register Face Response:",
+        data
+      );
+
+      setStatus(
+        `Employee face registered successfully ✅ (${data.employee?.faceSampleCount || faceSamples.length} samples)`
+      );
+
+      setFaceSamples([]);
+      setFaceDescriptor(null);
+    } catch (error) {
+      console.error(
+        "Register Face Error:",
+        error
+      );
+
+      setStatus(
+        error.message ||
+          "Face registration failed ❌"
+      );
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   // ==========================================
   // UI
@@ -236,13 +336,48 @@ function FaceCamera({ employeeId: employeeIdProp }) {
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
       <div className="w-full max-w-2xl">
 
-        <h1 className="text-3xl font-bold text-center mb-6">
+        <h1 className="text-3xl font-bold text-center mb-2">
           Employee Face Registration
         </h1>
 
+        <p className="text-center text-slate-400 mb-6">
+          Capture multiple face angles for better recognition
+        </p>
+
         <div className="bg-slate-900 rounded-2xl p-5">
 
-          {/* EMPLOYEE ID */}
+          {/* SAMPLE PROGRESS */}
+          <div className="mb-5 bg-slate-800 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-semibold">
+                Face Samples
+              </span>
+
+              <span className="text-blue-400 font-bold">
+                {faceSamples.length}/{MAX_SAMPLES}
+              </span>
+            </div>
+
+            <div className="flex gap-2">
+              {Array.from({
+                length: MAX_SAMPLES,
+              }).map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-2 flex-1 rounded-full ${
+                    index < faceSamples.length
+                      ? "bg-green-500"
+                      : "bg-slate-600"
+                  }`}
+                />
+              ))}
+            </div>
+
+            <p className="text-xs text-slate-400 mt-3">
+              Capture different angles: straight, left,
+              right, slightly up and slightly down.
+            </p>
+          </div>
 
           {/* CAMERA */}
           <div className="relative bg-black rounded-xl overflow-hidden">
@@ -254,6 +389,14 @@ function FaceCamera({ employeeId: employeeIdProp }) {
               muted
               className="w-full"
             />
+
+            {!cameraStarted && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                <p className="text-slate-400">
+                  Camera is not started
+                </p>
+              </div>
+            )}
 
             {faceDetected && (
               <div className="absolute top-4 left-4 bg-green-600 px-4 py-2 rounded-lg font-semibold">
@@ -293,24 +436,64 @@ function FaceCamera({ employeeId: employeeIdProp }) {
 
                 <button
                   onClick={captureFace}
-                  className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-semibold"
+                  disabled={
+                    faceSamples.length >= MAX_SAMPLES ||
+                    registering
+                  }
+                  className={`px-6 py-3 rounded-lg font-semibold ${
+                    faceSamples.length >= MAX_SAMPLES ||
+                    registering
+                      ? "bg-slate-600 cursor-not-allowed"
+                      : "bg-purple-600 hover:bg-purple-700"
+                  }`}
                 >
-                  Capture Face
+                  {faceSamples.length >= MAX_SAMPLES
+                    ? "5 Samples Captured"
+                    : `Capture Sample ${
+                        faceSamples.length + 1
+                      }`}
                 </button>
+
+                {faceSamples.length > 0 && (
+                  <button
+                    onClick={removeLastSample}
+                    disabled={registering}
+                    className="bg-yellow-600 hover:bg-yellow-700 px-6 py-3 rounded-lg font-semibold disabled:bg-slate-600"
+                  >
+                    Remove Last
+                  </button>
+                )}
+
+                {faceSamples.length > 0 && (
+                  <button
+                    onClick={resetSamples}
+                    disabled={registering}
+                    className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold disabled:bg-slate-600"
+                  >
+                    Reset Samples
+                  </button>
+                )}
 
                 <button
                   onClick={registerFace}
                   disabled={
-                    !faceDescriptor || registering
+                    faceSamples.length === 0 ||
+                    registering
                   }
-                  className={`px-6 py-3 rounded-lg font-semibold ${!faceDescriptor || registering
-                    ? "bg-slate-600 cursor-not-allowed"
-                    : "bg-orange-600 hover:bg-orange-700"
-                    }`}
+                  className={`px-6 py-3 rounded-lg font-semibold ${
+                    faceSamples.length === 0 ||
+                    registering
+                      ? "bg-slate-600 cursor-not-allowed"
+                      : "bg-orange-600 hover:bg-orange-700"
+                  }`}
                 >
                   {registering
                     ? "Registering..."
-                    : "Register Face"}
+                    : `Register ${faceSamples.length} Sample${
+                        faceSamples.length === 1
+                          ? ""
+                          : "s"
+                      }`}
                 </button>
               </>
             )}
