@@ -10,8 +10,15 @@ const locationRoutes = require("./routes/locationRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 
+
+
+const pushRoutes = require("./routes/pushRoutes");
+
+
 dotenv.config();
 const app = express();
+
+app.use("/api/push", pushRoutes);
 
 // Database
 connectDB();
