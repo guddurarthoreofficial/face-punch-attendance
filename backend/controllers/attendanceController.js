@@ -2,8 +2,7 @@ const Attendance = require("../models/Attendance");
 const School = require("../models/School");
 const calculateDistance = require("../utils/distance");
 const User = require("../models/User");
-const { isFaceMatch } = require("../utils/faceMatch");
-
+const { isFaceMatch, isFaceMatchMultiple } = require("../utils/faceMatch");
 const { getWorkingDates } = require("../utils/workingDays");
 
 const {
@@ -118,23 +117,48 @@ const checkIn = async (req, res) => {
     }
 
     // Check registered face
-    if (!Array.isArray(employee.faceData) || employee.faceData.length !== 128) {
+
+    // ==========================================
+    // FACE VERIFICATION
+    // ==========================================
+
+    let faceResult;
+
+    // New system: compare against multiple face samples
+    if (
+      Array.isArray(employee.faceSamples) &&
+      employee.faceSamples.length > 0
+    ) {
+      faceResult = isFaceMatchMultiple(employee.faceSamples, faceDescriptor);
+
+      console.log("Multi-Sample Face Verification:", faceResult);
+    }
+
+    // Backward compatibility: old employees
+    else if (
+      Array.isArray(employee.faceData) &&
+      employee.faceData.length === 128
+    ) {
+      faceResult = isFaceMatch(employee.faceData, faceDescriptor);
+
+      console.log("Legacy Face Verification:", faceResult);
+    }
+
+    // No registered face
+    else {
       return res.status(400).json({
         success: false,
         message: "Employee face is not registered",
       });
     }
 
-    // Face verification
-    const faceResult = isFaceMatch(employee.faceData, faceDescriptor);
-
-    console.log("Face Verification:", faceResult);
-
+    // Face verification failed
     if (!faceResult.matched) {
       return res.status(403).json({
         success: false,
         message: "Face verification failed",
         distance: faceResult.distance,
+        threshold: faceResult.threshold,
       });
     }
 

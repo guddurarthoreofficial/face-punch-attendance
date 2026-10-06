@@ -42,7 +42,60 @@ const isFaceMatch = (
   };
 };
 
+/**
+ * Compare live face against multiple registered samples.
+ * The smallest distance is considered the best match.
+ */
+const isFaceMatchMultiple = (
+  registeredSamples,
+  liveDescriptor,
+  threshold = 0.6
+) => {
+  if (!Array.isArray(registeredSamples)) {
+    throw new Error("Registered face samples must be an array");
+  }
+
+  if (registeredSamples.length === 0) {
+    throw new Error("No registered face samples found");
+  }
+
+  if (
+    !Array.isArray(liveDescriptor) ||
+    liveDescriptor.length !== 128
+  ) {
+    throw new Error(
+      "Live face descriptor must contain 128 values"
+    );
+  }
+
+  let bestDistance = Infinity;
+  let bestSampleIndex = -1;
+
+  for (let i = 0; i < registeredSamples.length; i++) {
+    const sample = registeredSamples[i];
+
+    const distance = calculateFaceDistance(
+      sample,
+      liveDescriptor
+    );
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestSampleIndex = i;
+    }
+  }
+
+  return {
+    matched: bestDistance <= threshold,
+    distance: bestDistance,
+    threshold,
+    bestSampleIndex,
+    sampleCount: registeredSamples.length,
+  };
+};
+
 module.exports = {
   calculateFaceDistance,
   isFaceMatch,
+  isFaceMatchMultiple,
 };
