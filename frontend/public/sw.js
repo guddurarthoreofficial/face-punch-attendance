@@ -1,16 +1,33 @@
 self.addEventListener("push", (event) => {
-  if (!event.data) {
-    return;
-  }
+  let data = {
+    title: "School Attendance",
+    body: "You have a new notification.",
+    url: "/employee",
+  };
 
-  const data = event.data.json();
+  if (event.data) {
+    try {
+      // Our backend sends JSON
+      data = event.data.json();
+    } catch (error) {
+      // Chrome DevTools test push sends plain text
+      data = {
+        title: "School Attendance",
+        body: event.data.text(),
+        url: "/employee",
+      };
+    }
+  }
 
   const title = data.title || "School Attendance";
 
   const options = {
     body: data.body || "You have a new notification.",
-    icon: "/pwa-192x192.png",
-    badge: "/pwa-192x192.png",
+
+    icon: data.icon || "/pwa-192x192.png",
+
+    badge: data.badge || "/pwa-192x192.png",
+
     data: {
       url: data.url || "/employee",
     },
