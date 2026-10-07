@@ -2,8 +2,10 @@ const Attendance = require("../models/Attendance");
 const School = require("../models/School");
 const calculateDistance = require("../utils/distance");
 const User = require("../models/User");
+
 const { isFaceMatch, isFaceMatchMultiple } = require("../utils/faceMatch");
 const { getWorkingDates } = require("../utils/workingDays");
+const { sendPushNotificationToUser } = require("../utils/pushNotification");
 
 const {
   getIndiaDateString,
@@ -242,6 +244,30 @@ const checkIn = async (req, res) => {
       status: attendanceStatus,
     });
 
+    // ==========================================
+    // PUSH NOTIFICATION - CHECK IN
+    // ==========================================
+
+    const notificationPayload = {
+      title:
+        attendanceStatus === "late"
+          ? "⚠️ Late Attendance"
+          : "🏫 Attendance Marked",
+
+      body:
+        attendanceStatus === "late"
+          ? "Your attendance has been marked. You are late."
+          : "Your attendance has been marked successfully.",
+
+      url: "/employee",
+    };
+
+    sendPushNotificationToUser(req.user._id, notificationPayload).catch(
+      (error) => {
+        console.error("Check-in Push Notification Error:", error);
+      },
+    );
+
     return res.status(201).json({
       success: true,
       message:
@@ -422,6 +448,22 @@ const checkOut = async (req, res) => {
     };
 
     await attendance.save();
+
+    // ==========================================
+    // PUSH NOTIFICATION - CHECK OUT
+    // ==========================================
+
+    const workingHoursText = Number(workingHours.toFixed(2));
+
+    sendPushNotificationToUser(req.user._id, {
+      title: "🏫 Check-out Successful",
+
+      body: `Your check-out has been recorded. Working hours: ${workingHoursText} hours.`,
+
+      url: "/employee",
+    }).catch((error) => {
+      console.error("Check-out Push Notification Error:", error);
+    });
 
     return res.status(200).json({
       success: true,
