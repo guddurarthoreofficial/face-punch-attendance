@@ -5,7 +5,10 @@ const User = require("../models/User");
 
 const { isFaceMatch, isFaceMatchMultiple } = require("../utils/faceMatch");
 const { getWorkingDates } = require("../utils/workingDays");
-const { sendPushNotificationToUser } = require("../utils/pushNotification");
+const {
+  sendPushNotificationToUser,
+  sendPushNotificationToAdmins,
+} = require("../utils/pushNotification");
 
 const {
   getIndiaDateString,
@@ -262,6 +265,26 @@ const checkIn = async (req, res) => {
       url: "/employee",
     };
 
+    // ==========================================
+    // PUSH NOTIFICATION - ADMIN CHECK IN
+    // ==========================================
+
+    sendPushNotificationToAdmins({
+      title:
+        attendanceStatus === "late"
+          ? "⚠️ Late Attendance"
+          : "🔔 New Attendance",
+
+      body:
+        attendanceStatus === "late"
+          ? `${employee.name} has marked late attendance.`
+          : `${employee.name} has marked attendance.`,
+
+      url: "/admin/attendance",
+    }).catch((error) => {
+      console.error("Admin Check-in Push Notification Error:", error);
+    });
+
     sendPushNotificationToUser(req.user._id, notificationPayload).catch(
       (error) => {
         console.error("Check-in Push Notification Error:", error);
@@ -390,6 +413,7 @@ const checkOut = async (req, res) => {
     }
 
     // Today's date
+    const employee = await User.findById(req.user._id).select("name");
     // const today = new Date().toISOString().split("T")[0];
     const today = getIndiaDateString();
 
@@ -463,6 +487,18 @@ const checkOut = async (req, res) => {
       url: "/employee",
     }).catch((error) => {
       console.error("Check-out Push Notification Error:", error);
+    });
+
+    // ==========================================
+    // PUSH NOTIFICATION - ADMIN CHECK OUT
+    // ==========================================
+
+    sendPushNotificationToAdmins({
+      title: "🏁 Employee Check-out",
+      body: `${employee.name} checked out. Working hours: ${workingHoursText} hours.`,
+      url: "/admin/attendance",
+    }).catch((error) => {
+      console.error("Admin Check-out Push Notification Error:", error);
     });
 
     return res.status(200).json({

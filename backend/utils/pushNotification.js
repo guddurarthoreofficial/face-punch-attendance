@@ -1,5 +1,6 @@
 const webpush = require("web-push");
 const PushSubscription = require("../models/PushSubscription");
+const User = require("../models/User");
 
 webpush.setVapidDetails(
   process.env.VAPID_SUBJECT,
@@ -13,7 +14,10 @@ webpush.setVapidDetails(
 
 const sendPushNotification = async (subscription, payload) => {
   try {
-    await webpush.sendNotification(subscription, JSON.stringify(payload));
+    await webpush.sendNotification(
+      subscription,
+      JSON.stringify(payload),
+    );
 
     return {
       success: true,
@@ -55,7 +59,10 @@ const sendPushNotificationToUser = async (userId, payload) => {
           },
         };
 
-        const result = await sendPushNotification(pushSubscription, payload);
+        const result = await sendPushNotification(
+          pushSubscription,
+          payload,
+        );
 
         // Remove expired subscription
         if (!result.success) {
@@ -85,7 +92,53 @@ const sendPushNotificationToUser = async (userId, payload) => {
   }
 };
 
+// ==========================================
+// SEND PUSH TO ALL ADMINS
+// ==========================================
+
+const sendPushNotificationToAdmins = async (payload) => {
+  try {
+    // Get all active admins
+    const admins = await User.find({
+      role: "admin",
+      isActive: true,
+    }).select("_id");
+
+    if (admins.length === 0) {
+      return {
+        success: false,
+        message: "No active admins found",
+      };
+    }
+
+    const results = await Promise.all(
+      admins.map(async (admin) => {
+        return sendPushNotificationToUser(
+          admin._id,
+          payload,
+        );
+      }),
+    );
+
+    return {
+      success: results.some((result) => result.success),
+    };
+  } catch (error) {
+    console.error("Send Admin Push Error:", error);
+
+    return {
+      success: false,
+      message: "Failed to send admin notifications",
+    };
+  }
+};
+
+// ==========================================
+// EXPORT
+// ==========================================
+
 module.exports = {
   sendPushNotification,
   sendPushNotificationToUser,
+  sendPushNotificationToAdmins,
 };
