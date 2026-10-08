@@ -12,17 +12,23 @@ const attendanceRoutes = require("./routes/attendanceRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 const pushRoutes = require("./routes/pushRoutes");
 
-dotenv.config();
 
 const app = express();
 
 // ==========================================
 // CORS
 // ==========================================
-
 const allowedOrigins = [
+  // Local React development
   "http://localhost:5173",
   "http://localhost:5174",
+
+  // Capacitor Android
+  "http://localhost",
+  "https://localhost",
+  "capacitor://localhost",
+
+  // Deployed frontend
   "https://attendance-beta-five.vercel.app",
 ];
 
@@ -30,20 +36,22 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests without an Origin
-      // (Postman, server-to-server, etc.)
+      // Postman, server-to-server, etc.
       if (!origin) {
         return callback(null, true);
       }
 
-      // Allow local development
+      // Allowed origins
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      // Allow deployed frontend
-      if (origin.includes(".vercel.app")) {
+      // Allow any Vercel deployment
+      if (origin.endsWith(".vercel.app")) {
         return callback(null, true);
       }
+
+      console.log("Blocked by CORS:", origin);
 
       return callback(new Error("Not allowed by CORS"));
     },
