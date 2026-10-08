@@ -20,9 +20,12 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import AdminLayout from "./layouts/AdminLayout";
 import EmployeeLayout from "./layouts/EmployeeLayout";
+
 import AdminAttendance from "./pages/admin/AdminAttendance";
 import AttendanceRules from "./pages/admin/AttendanceRules";
 import AdminReports from "./pages/admin/AdminReports";
+import AdminSettings from "./pages/admin/AdminSettings";
+
 import History from "./pages/employee/History";
 import Profile from "./pages/employee/Profile";
 
@@ -146,6 +149,11 @@ function AppRoutes() {
         <Route
           path="reports"
           element={<AdminReports />}
+        />
+
+        <Route
+          path="settings"
+          element={<AdminSettings />}
         />
 
       </Route>
