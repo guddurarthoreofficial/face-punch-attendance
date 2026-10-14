@@ -10,8 +10,8 @@ const schoolRoutes = require("./routes/schoolRoutes");
 const locationRoutes = require("./routes/locationRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
+const salaryRoutes = require("./routes/salaryRoutes");
 const pushRoutes = require("./routes/pushRoutes");
-
 
 const app = express();
 
@@ -101,6 +101,8 @@ app.use("/api/location", locationRoutes);
 app.use("/api/attendance", attendanceRoutes);
 
 app.use("/api/employees", employeeRoutes);
+
+app.use("/api/salaries", salaryRoutes);
 
 app.use("/api/push", pushRoutes);
 
