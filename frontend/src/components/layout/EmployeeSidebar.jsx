@@ -45,6 +45,11 @@ function EmployeeSidebar({
       path: "/employee/profile",
       icon: "👤",
     },
+    {
+      label: "Settings",
+      path: "/employee/settings",
+      icon: "⚙️",
+    },
   ];
 
   return (
@@ -69,10 +74,9 @@ function EmployeeSidebar({
           flex flex-col
           transition-transform duration-300
           lg:translate-x-0
-          ${
-            mobileOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+          ${mobileOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
           }
         `}
       >
@@ -123,10 +127,9 @@ function EmployeeSidebar({
                   rounded-xl
                   text-sm font-medium
                   transition-all duration-200
-                  ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  ${isActive
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
                   }
                 `}
               >
@@ -139,10 +142,9 @@ function EmployeeSidebar({
                         flex items-center justify-center
                         text-base
                         transition
-                        ${
-                          isActive
-                            ? "bg-white/10"
-                            : "bg-slate-800 group-hover:bg-slate-700"
+                        ${isActive
+                          ? "bg-white/10"
+                          : "bg-slate-800 group-hover:bg-slate-700"
                         }
                       `}
                     >

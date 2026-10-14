@@ -56,6 +56,13 @@ function EmployeeLayout() {
       };
     }
 
+    if (path === "/employee/settings") {
+      return {
+        title: "Settings",
+        subtitle: "Manage push notifications and preferences",
+      };
+    }
+
     return {
       title: "Employee Portal",
       subtitle: "School Attendance Management System",

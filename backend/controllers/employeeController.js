@@ -911,10 +911,63 @@ const getEmployeeDetails = async (req, res) => {
   }
 };
 
+
+const getMyProfile = async (req, res) => {
+  try {
+    const employee = await User.findById(req.user._id)
+      .select(
+        "+bankDetails.accountNumber +bankDetails.ifscCode +bankDetails.upiId"
+      )
+      .lean();
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found",
+      });
+    }
+
+    // Never return the password or face descriptors.
+    const {
+      password,
+      faceData,
+      faceSamples,
+      ...safeEmployee
+    } = employee;
+
+    return res.status(200).json({
+      success: true,
+      employee: {
+        ...safeEmployee,
+        faceRegistered:
+          Array.isArray(faceData) && faceData.length === 128,
+        bankDetails: {
+          accountHolderName:
+            employee.bankDetails?.accountHolderName || "",
+          bankName: employee.bankDetails?.bankName || "",
+          accountNumber:
+            employee.bankDetails?.accountNumber || "",
+          ifscCode: employee.bankDetails?.ifscCode || "",
+          upiId: employee.bankDetails?.upiId || "",
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get My Profile Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch profile",
+    });
+  }
+};
+
+
 module.exports = {
   createEmployee,
   getEmployees,
   getEmployeeDetails,
+  getMyProfile,
   updateEmployee,
   toggleEmployeeStatus,
   registerEmployeeFace,

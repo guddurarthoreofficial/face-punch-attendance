@@ -31,6 +31,7 @@ import SalaryManagement from "./pages/admin/SalaryManagement";
 import History from "./pages/employee/History";
 import Profile from "./pages/employee/Profile";
 import MyPayslips from "./pages/employee/MyPayslips";
+import Settings from "./pages/employee/Settings";
 
 import {
   AuthProvider,
@@ -207,6 +208,11 @@ function AppRoutes() {
         <Route
           path="payslips"
           element={<MyPayslips />}
+        />
+
+        <Route
+          path="settings"
+          element={<Settings />}
         />
 
       </Route>
