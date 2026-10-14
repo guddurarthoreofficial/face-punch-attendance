@@ -25,9 +25,12 @@ import AdminAttendance from "./pages/admin/AdminAttendance";
 import AttendanceRules from "./pages/admin/AttendanceRules";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
+import SalaryManagement from "./pages/admin/SalaryManagement";
+
 
 import History from "./pages/employee/History";
 import Profile from "./pages/employee/Profile";
+import MyPayslips from "./pages/employee/MyPayslips";
 
 import {
   AuthProvider,
@@ -152,6 +155,11 @@ function AppRoutes() {
         />
 
         <Route
+          path="salaries"
+          element={<SalaryManagement />}
+        />
+
+        <Route
           path="settings"
           element={<AdminSettings />}
         />
@@ -194,6 +202,11 @@ function AppRoutes() {
         <Route
           path="profile"
           element={<Profile />}
+        />
+
+        <Route
+          path="payslips"
+          element={<MyPayslips />}
         />
 
       </Route>

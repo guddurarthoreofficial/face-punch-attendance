@@ -1,3 +1,4 @@
+
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -35,6 +36,11 @@ function EmployeeSidebar({
       icon: "📋",
     },
     {
+      label: "My Payslips",
+      path: "/employee/payslips",
+      icon: "💰",
+    },
+    {
       label: "Profile",
       path: "/employee/profile",
       icon: "👤",
@@ -43,10 +49,7 @@ function EmployeeSidebar({
 
   return (
     <>
-      {/* ==========================================
-          MOBILE OVERLAY
-      ========================================== */}
-
+      {/* MOBILE OVERLAY */}
       {mobileOpen && (
         <button
           type="button"
@@ -56,10 +59,7 @@ function EmployeeSidebar({
         />
       )}
 
-      {/* ==========================================
-          SIDEBAR
-      ========================================== */}
-
+      {/* SIDEBAR */}
       <aside
         className={`
           fixed top-0 left-0 z-50
@@ -76,33 +76,24 @@ function EmployeeSidebar({
           }
         `}
       >
-        {/* ========================================
-            BRAND
-        ======================================== */}
-
+        {/* BRAND */}
         <div className="h-20 px-5 flex items-center border-b border-slate-800">
           <div className="flex items-center gap-3 min-w-0">
-
             <div className="w-11 h-11 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
-              <span className="text-xl">
-                🏫
-              </span>
+              <span className="text-xl">🏫</span>
             </div>
 
             <div className="min-w-0">
               <h1 className="text-white font-bold text-base truncate">
                 School Attendance
               </h1>
-
               <p className="text-xs text-slate-400 mt-0.5">
                 Employee Portal
               </p>
             </div>
-
           </div>
 
           {/* MOBILE CLOSE */}
-
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
@@ -113,28 +104,20 @@ function EmployeeSidebar({
           </button>
         </div>
 
-        {/* ========================================
-            NAVIGATION
-        ======================================== */}
-
+        {/* NAVIGATION */}
         <nav className="flex-1 overflow-y-auto px-3 py-5">
-
           <p className="px-3 mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             Main Menu
           </p>
 
           <div className="space-y-1">
-
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.end}
-                onClick={() =>
-                  setMobileOpen(false)
-                }
-                className={({ isActive }) =>
-                  `
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) => `
                   group flex items-center gap-3
                   px-3 py-3
                   rounded-xl
@@ -145,8 +128,7 @@ function EmployeeSidebar({
                       ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
                       : "text-slate-400 hover:bg-slate-800 hover:text-white"
                   }
-                  `
-                }
+                `}
               >
                 {({ isActive }) => (
                   <>
@@ -178,38 +160,27 @@ function EmployeeSidebar({
                 )}
               </NavLink>
             ))}
-
           </div>
         </nav>
 
-        {/* ========================================
-            USER SECTION
-        ======================================== */}
-
+        {/* USER SECTION */}
         <div className="border-t border-slate-800 p-3">
-
           <div className="flex items-center gap-3 px-3 py-3 mb-2">
-
             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shrink-0">
               {user?.name?.charAt(0)?.toUpperCase() || "E"}
             </div>
 
             <div className="min-w-0 flex-1">
-
               <p className="text-sm font-semibold text-white truncate">
                 {user?.name || "Employee"}
               </p>
-
               <p className="text-xs text-slate-400 truncate">
                 {user?.email || "Employee Account"}
               </p>
-
             </div>
-
           </div>
 
           {/* LOGOUT */}
-
           <button
             type="button"
             onClick={handleLogout}
@@ -218,12 +189,8 @@ function EmployeeSidebar({
             <span className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center">
               ↪
             </span>
-
-            <span>
-              Logout
-            </span>
+            <span>Logout</span>
           </button>
-
         </div>
       </aside>
     </>
