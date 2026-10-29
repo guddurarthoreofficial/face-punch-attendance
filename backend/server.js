@@ -30,6 +30,7 @@ const allowedOrigins = [
 
   // Deployed frontend
   "https://attendance-beta-five.vercel.app",
+  "https://attendance.shiulitech.in",
 ];
 
 app.use(

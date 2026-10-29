@@ -1,14 +1,21 @@
+
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet -->
+    <!-- Internet access for deployed backend -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Location -->
+    <!-- GPS / Location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Camera -->
+
+    <!-- Camera access -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Camera is preferred, but the app can still install without one -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -19,12 +26,12 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -33,6 +40,7 @@
 
         </activity>
 
+        <!-- File provider for file sharing -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
